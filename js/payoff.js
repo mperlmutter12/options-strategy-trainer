@@ -19,6 +19,7 @@
 
   var SPOT = 100;          // notional underlying price all strikes are relative to
   var CONTRACT = 100;      // shares per contract (used for per-contract dollar display)
+  var _uid = 0;            // unique id source for SVG clipPaths
 
   /* ----------------------------------------------------------
    * PREMIUM MODEL  (design note)
@@ -241,6 +242,26 @@
       svg.appendChild(el('line', { x1: sx(spot), y1: pad.t, x2: sx(spot), y2: pad.t + plotH, class: 'spot-line' }));
     }
 
+    // dotted component lines (the "parts" that sum to the net payoff).
+    // Clipped to the plot area so a leg that runs past the net range doesn't overflow.
+    var compFns = opts._componentFns || [];
+    if (compFns.length) {
+      var clipId = 'ppclip' + (++_uid);
+      var defs = el('defs', {});
+      var cp = el('clipPath', { id: clipId });
+      cp.appendChild(el('rect', { x: pad.l, y: pad.t, width: plotW, height: plotH }));
+      defs.appendChild(cp);
+      svg.appendChild(defs);
+      compFns.forEach(function (fn) {
+        var cd = '';
+        for (var ci = 0; ci <= n; ci++) {
+          var cs = dom.lo + (dom.hi - dom.lo) * ci / n;
+          cd += (ci ? ' L' : 'M') + sx(cs) + ',' + sy(fn(cs));
+        }
+        svg.appendChild(el('path', { d: cd, class: 'payoff-component', 'clip-path': 'url(#' + clipId + ')' }));
+      });
+    }
+
     var d = '';
     for (var q = 0; q < pts.length; q++) d += (q ? ' L' : 'M') + sx(pts[q].s) + ',' + sy(pts[q].pl);
     svg.appendChild(el('path', { d: d, class: 'payoff-line' }));
@@ -265,17 +286,36 @@
   function addText(svg, el, x, y, str, cls) { var t = el('text', { x: x, y: y, class: cls }); t.textContent = str; svg.appendChild(t); }
   function fmtY(v) { var d = v * CONTRACT; if (Math.abs(d) >= 1000) return (d / 1000).toFixed(1) + 'k'; return d.toFixed(0); }
 
-  // RELATIVE renderer (library + games)
+  // Default decomposition: one component per leg (skipped for single-leg strategies).
+  function perLegComponents(legs) {
+    return legs.length > 1 ? legs.map(function (l) { return [l]; }) : [];
+  }
+
+  // RELATIVE renderer (library + games). opts.components = array of leg-arrays
+  // to draw as dotted "parts"; omit for the per-leg default, or pass [] to suppress.
   function renderSVG(legs, opts) {
+    opts = opts || {};
     var dom = displayDomain(legs);
     var m = computeMetrics(legs, { hi: dom.hi });
+    var comps = (opts.components !== undefined) ? opts.components : perLegComponents(legs);
+    opts._componentFns = comps.map(function (cl) { return function (s) { return payoffAt(cl, s); }; });
     return drawCurve(function (s) { return payoffAt(legs, s); }, dom, m.breakEvens, SPOT, opts);
   }
 
-  // ABSOLUTE renderer (sandbox)
+  // Render a full strategy object, using its logical `components` if defined.
+  function renderStrategy(strategy, opts) {
+    opts = opts || {};
+    if (strategy.components && opts.components === undefined) opts.components = strategy.components;
+    return renderSVG(strategy.legs, opts);
+  }
+
+  // ABSOLUTE renderer (sandbox) — per-leg components.
   function renderCustom(legs, spot, opts) {
+    opts = opts || {};
     var dom = domainAbs(legs, spot);
     var m = computeMetricsAbs(legs, spot);
+    var comps = (opts.components !== undefined) ? opts.components : perLegComponents(legs);
+    opts._componentFns = comps.map(function (cl) { return function (s) { return payoffAtAbs(cl, s); }; });
     return drawCurve(function (s) { return payoffAtAbs(legs, s); }, dom, m.breakEvens, spot, opts);
   }
 
@@ -344,7 +384,7 @@
     intrinsic: intrinsic, premium: premium, legStrike: legStrike,
     payoffAt: payoffAt, netDebit: netDebit,
     computeMetrics: computeMetrics, describeMetrics: describeMetrics, displayDomain: displayDomain,
-    renderSVG: renderSVG, metricsTableHTML: metricsTableHTML,
+    renderSVG: renderSVG, renderStrategy: renderStrategy, metricsTableHTML: metricsTableHTML,
     // absolute / sandbox
     payoffAtAbs: payoffAtAbs, computeMetricsAbs: computeMetricsAbs,
     describeMetricsAbs: describeMetricsAbs, renderCustom: renderCustom, domainAbs: domainAbs

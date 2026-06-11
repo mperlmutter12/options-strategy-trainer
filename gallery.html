@@ -56,7 +56,7 @@
                    '</div>';
         d.innerHTML = head;
 
-        d.appendChild(Payoff.renderSVG(s.legs, { width: 460, height: 240 }));
+        d.appendChild(Payoff.renderStrategy(s, { width: 460, height: 240 }));
 
         var g = s.greeks;
         var metrics = document.createElement('div');

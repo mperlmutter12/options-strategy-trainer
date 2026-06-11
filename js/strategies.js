@@ -77,15 +77,6 @@
       blurb: 'Own the stock and sell a call against it. The call premium adds yield and caps your upside above the strike; downside is the stock minus the credit.'
     },
     {
-      id: 'cash-secured-put', name: 'Cash-Secured Put', category: 'single', tier: 'Beginner',
-      legs: [{ action: 'sell', type: 'put', strike: -5, qty: 1, expiry: 'near' }],
-      priceOutlook: 'bullish', volOutlook: 'short vol',
-      profitPotential: 'limited', risk: 'limited',
-      greeks: { delta: 'long', gamma: 'short', theta: 'long', vega: 'short' },
-      aka: ['cash secured put', 'csp', 'cash-secured put'],
-      blurb: 'Sell an OTM put with cash set aside to buy the shares if assigned. A way to get paid to wait for a lower entry price.'
-    },
-    {
       id: 'protective-put', name: 'Protective Put', category: 'single', tier: 'Beginner',
       legs: [
         { action: 'buy', type: 'stock', strike: 0, qty: 1, expiry: 'near' },
@@ -209,7 +200,11 @@
       profitPotential: 'limited', risk: 'limited',
       greeks: { delta: 'neutral', gamma: 'short', theta: 'long', vega: 'short' },
       aka: ['iron condor', 'condor', 'ic'],
-      blurb: 'Sell an OTM put spread and an OTM call spread. Profits in a wide range while the underlying stays between the short strikes; risk capped by the wings.'
+      blurb: 'Sell an OTM put spread and an OTM call spread. Profits in a wide range while the underlying stays between the short strikes; risk capped by the wings.',
+      components: [
+        [ { action: 'buy', type: 'put', strike: -15, qty: 1, expiry: 'near' }, { action: 'sell', type: 'put', strike: -5, qty: 1, expiry: 'near' } ],
+        [ { action: 'sell', type: 'call', strike: 5, qty: 1, expiry: 'near' }, { action: 'buy', type: 'call', strike: 15, qty: 1, expiry: 'near' } ]
+      ]
     },
     {
       id: 'iron-butterfly', name: 'Iron Butterfly', category: 'vol', tier: 'Advanced',
@@ -223,7 +218,11 @@
       profitPotential: 'limited', risk: 'limited',
       greeks: { delta: 'neutral', gamma: 'short', theta: 'long', vega: 'short' },
       aka: ['iron butterfly', 'iron fly', 'ironfly'],
-      blurb: 'A short straddle bracketed by long wings. Higher credit and a sharper profit peak than an iron condor, but a narrower profit zone; risk is capped.'
+      blurb: 'A short straddle bracketed by long wings. Higher credit and a sharper profit peak than an iron condor, but a narrower profit zone; risk is capped.',
+      components: [
+        [ { action: 'buy', type: 'put', strike: -10, qty: 1, expiry: 'near' }, { action: 'sell', type: 'put', strike: 0, qty: 1, expiry: 'near' } ],
+        [ { action: 'sell', type: 'call', strike: 0, qty: 1, expiry: 'near' }, { action: 'buy', type: 'call', strike: 10, qty: 1, expiry: 'near' } ]
+      ]
     },
 
     /* ---------------- ADVANCED (price/structure, non-time) ---------------- */
@@ -238,7 +237,11 @@
       profitPotential: 'limited', risk: 'limited',
       greeks: { delta: 'neutral', gamma: 'short', theta: 'long', vega: 'short' },
       aka: ['butterfly', 'call butterfly', 'long butterfly', 'long call butterfly'],
-      blurb: 'Buy one ITM call, sell two ATM calls, buy one OTM call. A cheap, defined-risk bet that the underlying pins the middle strike at expiration.'
+      blurb: 'Buy one ITM call, sell two ATM calls, buy one OTM call. A cheap, defined-risk bet that the underlying pins the middle strike at expiration.',
+      components: [
+        [ { action: 'buy', type: 'call', strike: -10, qty: 1, expiry: 'near' }, { action: 'sell', type: 'call', strike: 0, qty: 1, expiry: 'near' } ],
+        [ { action: 'sell', type: 'call', strike: 0, qty: 1, expiry: 'near' }, { action: 'buy', type: 'call', strike: 10, qty: 1, expiry: 'near' } ]
+      ]
     },
     {
       id: 'broken-wing-butterfly', name: 'Broken-Wing Butterfly', category: 'advanced', tier: 'Advanced',
@@ -251,7 +254,11 @@
       profitPotential: 'limited', risk: 'limited',
       greeks: { delta: 'neutral', gamma: 'short', theta: 'long', vega: 'short' },
       aka: ['broken wing butterfly', 'bwb', 'broken-wing butterfly', 'skip strike butterfly'],
-      blurb: 'A butterfly with one wing pushed further out, skewing the risk. Often opened for a credit so one side carries no loss — the cost is more risk on the other.'
+      blurb: 'A butterfly with one wing pushed further out, skewing the risk. Often opened for a credit so one side carries no loss — the cost is more risk on the other.',
+      components: [
+        [ { action: 'buy', type: 'call', strike: -10, qty: 1, expiry: 'near' }, { action: 'sell', type: 'call', strike: 0, qty: 1, expiry: 'near' } ],
+        [ { action: 'sell', type: 'call', strike: 0, qty: 1, expiry: 'near' }, { action: 'buy', type: 'call', strike: 15, qty: 1, expiry: 'near' } ]
+      ]
     },
     {
       id: 'call-ratio-spread', name: 'Call Ratio Spread', category: 'advanced', tier: 'Advanced',
@@ -289,7 +296,11 @@
       profitPotential: 'limited', risk: 'limited',
       greeks: { delta: 'long', gamma: 'short', theta: 'long', vega: 'short' },
       aka: ['jade lizard'],
-      blurb: 'A short put plus a short call spread, sized so the total credit covers the call-spread width — leaving NO risk to the upside. All the risk is to the downside, like a short put.'
+      blurb: 'A short put plus a short call spread, sized so the total credit covers the call-spread width — leaving NO risk to the upside. All the risk is to the downside, like a short put.',
+      components: [
+        [ { action: 'sell', type: 'put', strike: -5, qty: 1, expiry: 'near' } ],
+        [ { action: 'sell', type: 'call', strike: 5, qty: 1, expiry: 'near' }, { action: 'buy', type: 'call', strike: 10, qty: 1, expiry: 'near' } ]
+      ]
     },
     {
       id: 'call-backspread', name: 'Call Backspread', category: 'advanced', tier: 'Advanced',
@@ -364,6 +375,42 @@
       greeks: { delta: 'neutral', gamma: 'neutral', theta: 'neutral', vega: 'neutral' },
       aka: ['reversal', 'reverse conversion', 'revcon'],
       blurb: 'Short stock combined with a synthetic long (long call + short put, same strike). A flat, near-riskless line — the mirror image of a conversion.'
+    },
+    {
+      id: 'long-box', name: 'Long Box', category: 'advanced', tier: 'Advanced',
+      legs: [
+        { action: 'buy', type: 'call', strike: -5, qty: 1, expiry: 'near' },
+        { action: 'sell', type: 'call', strike: 5, qty: 1, expiry: 'near' },
+        { action: 'buy', type: 'put', strike: 5, qty: 1, expiry: 'near' },
+        { action: 'sell', type: 'put', strike: -5, qty: 1, expiry: 'near' }
+      ],
+      priceOutlook: 'neutral', volOutlook: 'neutral',
+      profitPotential: 'limited', risk: 'limited',
+      greeks: { delta: 'neutral', gamma: 'neutral', theta: 'neutral', vega: 'neutral' },
+      aka: ['box spread', 'box', 'long box', 'long box spread'],
+      blurb: 'A bull call spread plus a bear put spread at the same two strikes. The payoff is a fixed amount — the strike width — no matter where the underlying lands. A riskless, bond-like position used to lock in a financing rate.',
+      components: [
+        [ { action: 'buy', type: 'call', strike: -5, qty: 1, expiry: 'near' }, { action: 'sell', type: 'call', strike: 5, qty: 1, expiry: 'near' } ],
+        [ { action: 'buy', type: 'put', strike: 5, qty: 1, expiry: 'near' }, { action: 'sell', type: 'put', strike: -5, qty: 1, expiry: 'near' } ]
+      ]
+    },
+    {
+      id: 'short-box', name: 'Short Box', category: 'advanced', tier: 'Advanced',
+      legs: [
+        { action: 'sell', type: 'call', strike: -5, qty: 1, expiry: 'near' },
+        { action: 'buy', type: 'call', strike: 5, qty: 1, expiry: 'near' },
+        { action: 'sell', type: 'put', strike: 5, qty: 1, expiry: 'near' },
+        { action: 'buy', type: 'put', strike: -5, qty: 1, expiry: 'near' }
+      ],
+      priceOutlook: 'neutral', volOutlook: 'neutral',
+      profitPotential: 'limited', risk: 'limited',
+      greeks: { delta: 'neutral', gamma: 'neutral', theta: 'neutral', vega: 'neutral' },
+      aka: ['short box', 'short box spread'],
+      blurb: 'Selling the box — the mirror of a long box. Collects the strike width up front and repays it at expiration, effectively borrowing at a locked rate. Flat, riskless payoff.',
+      components: [
+        [ { action: 'sell', type: 'call', strike: -5, qty: 1, expiry: 'near' }, { action: 'buy', type: 'call', strike: 5, qty: 1, expiry: 'near' } ],
+        [ { action: 'sell', type: 'put', strike: 5, qty: 1, expiry: 'near' }, { action: 'buy', type: 'put', strike: -5, qty: 1, expiry: 'near' } ]
+      ]
     }
   ];
 

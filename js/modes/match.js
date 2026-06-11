@@ -43,7 +43,7 @@
       },
       render: function (s, h) {
         var box = h('div', { class: 'tile-graph' });
-        box.appendChild(global.Payoff.renderSVG(s.legs, { width: 200, height: 110, mini: true }));
+        box.appendChild(global.Payoff.renderStrategy(s, { width: 200, height: 110, mini: true }));
         return box;
       }
     }

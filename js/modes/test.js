@@ -51,7 +51,7 @@
   function genGraphToName(pool) {
     var s = pick(pool);
     return mc('Which strategy produces this payoff at expiration?',
-      function () { return global.Payoff.renderSVG(s.legs, { width: 420, height: 220 }); },
+      function () { return global.Payoff.renderStrategy(s, { width: 420, height: 220 }); },
       s.name, otherNames(pool, s, 3), s.blurb);
   }
   function genLegsToName(pool) {

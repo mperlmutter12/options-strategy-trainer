@@ -90,7 +90,7 @@
       var grid = h('div', { class: 'fc-back-grid' });
 
       var left = h('div');
-      left.appendChild(global.Payoff.renderSVG(s.legs, { width: 360, height: 200 }));
+      left.appendChild(global.Payoff.renderStrategy(s, { width: 360, height: 200 }));
       var metrics = h('div', { class: 'metrics', style: 'margin-top:8px' });
       metrics.innerHTML = global.Payoff.metricsTableHTML(s.legs);
       left.appendChild(metrics);

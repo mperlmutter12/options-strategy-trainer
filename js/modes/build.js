@@ -77,7 +77,7 @@
       var s = state.target;
       targetCol.innerHTML = '';
       targetCol.appendChild(h('div', { class: 'fc-section-label', text: 'Target payoff' }));
-      targetCol.appendChild(global.Payoff.renderSVG(s.legs, { width: 380, height: 210 }));
+      targetCol.appendChild(global.Payoff.renderSVG(s.legs, { width: 380, height: 210, components: [] }));
       targetCol.appendChild(h('div', { class: 'tags', style: 'margin-top:10px' }, [
         h('span', { class: 'pill', text: s.priceOutlook }),
         h('span', { class: 'pill', text: s.volOutlook }),

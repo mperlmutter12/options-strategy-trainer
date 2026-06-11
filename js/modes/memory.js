@@ -21,7 +21,7 @@
         h('div', { class: 'dim', text: 'profit ' + s.profitPotential + ' · risk ' + s.risk })]); } },
     graph: { label: 'Graph',
       key: function (s) { var p = []; for (var x = SPOT - 20; x <= SPOT + 20; x += 5) p.push(Math.round(global.Payoff.payoffAt(s.legs, x))); return p.join(','); },
-      render: function (s, h) { var b = h('div', { class: 'tile-graph' }); b.appendChild(global.Payoff.renderSVG(s.legs, { width: 200, height: 110, mini: true })); return b; } }
+      render: function (s, h) { var b = h('div', { class: 'tile-graph' }); b.appendChild(global.Payoff.renderStrategy(s, { width: 200, height: 110, mini: true })); return b; } }
   };
 
   function legStr(leg) {
