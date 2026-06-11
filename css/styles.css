@@ -212,6 +212,16 @@ h2 { font-size: 18px; margin: 28px 0 12px; border-bottom: 1px solid var(--border
 }
 .tag-line { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
 
+.home-footer {
+  margin-top: 40px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.home-footer-sub { color: var(--text-mute); font-size: 11px; margin-top: 3px; letter-spacing: 0.3px; }
+
 /* ---------------- Match mode ---------------- */
 .hud .hud-stat {
   background: var(--bg-2);

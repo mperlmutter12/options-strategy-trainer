@@ -170,6 +170,11 @@
       v.appendChild(h('p', { class: 'tag-line', style: 'color:var(--gold)', text: '⚠ localStorage unavailable — scores and streaks will not persist this session.' }));
     }
 
+    v.appendChild(h('div', { class: 'home-footer' }, [
+      h('div', { text: '© 2026 Puma Capital, LLC' }),
+      h('div', { class: 'home-footer-sub', text: 'Internal training tool' })
+    ]));
+
     updateCount();
   }
 
