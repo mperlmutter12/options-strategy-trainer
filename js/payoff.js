@@ -29,14 +29,16 @@
    * deterministic, internally-consistent model — NOT Black-Scholes:
    *
    *   premium = intrinsic-at-spot + time value
-   *   time value = ATM_TV * exp(-0.5 * ((K - spot)/WIDTH)^2)
+   *   time value = ATM_TV − $1 per $5 the strike sits from spot (floored at $1)
    *
-   * Tunable below. Teaching values, not market quotes.
+   * Whole-dollar, ATM-peaked teaching premiums: $5 (near) / $8 (far) at the
+   * money, dropping a clean $1 per strike further out, plus intrinsic when ITM.
+   * Not market quotes — just internally consistent.
    * -------------------------------------------------------- */
   var PREMIUM = {
-    atmTvNear: 5.0, atmTvFar: 8.0, width: 18,
-    resWidth: 9   // narrower curve for far-leg RESIDUAL value at the near expiry,
-                  // so calendar tents stay peaked and double-calendar humps separate
+    atmTvNear: 5.0, atmTvFar: 8.0,
+    resWidth: 9   // width of the far-leg RESIDUAL time-value curve at the near expiry
+                  // (still a gaussian) — keeps calendar tents peaked, double-cal humps split
   };
 
   function intrinsic(type, strike, S) {
@@ -48,8 +50,8 @@
   // Theoretical entry premium for an option leg at trade inception (S = spot).
   function premium(type, strike, expiry) {
     var atm = (expiry === 'far') ? PREMIUM.atmTvFar : PREMIUM.atmTvNear;
-    var d = (strike - SPOT) / PREMIUM.width;
-    var tv = atm * Math.exp(-0.5 * d * d);
+    var steps = Math.abs(strike - SPOT) / 5;          // strikes sit on a $5 grid
+    var tv = Math.max(atm - steps, 1);                // ~$1 of time value per $5 OTM/ITM, floored at $1
     return intrinsic(type, strike, SPOT) + tv;
   }
 

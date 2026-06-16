@@ -33,7 +33,7 @@
     function menu() {
       view.innerHTML = '';
       view.appendChild(h('h1', { text: 'Drills' }));
-      view.appendChild(h('p', { class: 'sub', text: 'Fast practice. Mental-math sprints (type the answer, beat the clock) plus timed 10-question quizzes on the Greeks and strategy selection — race to finish.' }));
+      view.appendChild(h('p', { class: 'sub', text: 'Timed practice games to build speed and instinct — beat the clock and your own best score.' }));
       var grid = h('div', { class: 'grid' });
       grid.appendChild(card(h, 'Box Pricing',
         'Given a box spread\'s four legs and their prices, work out the net cost, what it\'s worth at expiration, or the locked-in profit.',
@@ -915,7 +915,7 @@
 
   global.App.registerMode({
     id: 'drills', label: 'Drills', minStrategies: 0,
-    blurb: 'Fast practice: mental-math sprints (box pricing, option value, moneyness, break-evens) plus timed 10-question Greeks and Outlook quizzes.',
+    blurb: 'Timed practice games that sharpen the mental math and fast recognition options trading runs on.',
     init: init
   });
 })(window);
