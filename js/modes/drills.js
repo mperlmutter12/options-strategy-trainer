@@ -9,6 +9,13 @@
  *      time) your P/L if you bought it for a premium. 90-second
  *      sprint: answer as many as you can. Wide-ranging awkward
  *      dollar amounts with .25/.50 cents, mixed ITM/OTM.
+ *   3) Moneyness Flash — flash an option (type, strike, stock),
+ *      tap ITM / ATM / OTM (or press 1/2/3) against a 90s clock.
+ *   4) Break-even — legs + per-leg premiums; type the break-even
+ *      price (singles + verticals, one BE each). 90s sprint.
+ *
+ * Games 2–4 share runSprint() — the 90-second timer + pause + HUD +
+ * scoring shell — and supply their own makeQ()/render().
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -19,6 +26,7 @@
   // is backward-compatible; fractional values (option-value game) show cents.
   function money(n) { var a = Math.abs(n); return (n < 0 ? '−$' : '$') + (Number.isInteger(a) ? String(a) : a.toFixed(2)); }
   function px(n) { return Number.isInteger(n) ? String(n) : n.toFixed(2); }
+  function round2(n) { return Math.round(n * 100) / 100; }
 
   function init(view, ctx) {
     var h = ctx.h;
@@ -33,6 +41,12 @@
       grid.appendChild(card(h, 'Option Value',
         '90-second sprint. One call or put with a strike and the stock price: compute what it\'s worth at expiration — or, if you bought it for a premium, your profit/loss. Answer as many as you can. Awkward dollars, cents in play.',
         ctx.Store.get('option-value'), function () { runOption(view, ctx, menu); }));
+      grid.appendChild(card(h, 'Moneyness Flash',
+        '90-second sprint. An option flashes up — call or put, a strike, the stock price. Tap ITM / ATM / OTM (or press 1 / 2 / 3) as fast as you can. Pure recognition reflex.',
+        ctx.Store.get('moneyness'), function () { runMoneyness(view, ctx, menu); }));
+      grid.appendChild(card(h, 'Break-even',
+        '90-second sprint. Given a strategy\'s legs and per-leg premiums, type the break-even price. Singles are one step; verticals make you net the premiums first.',
+        ctx.Store.get('breakeven'), function () { runBreakeven(view, ctx, menu); }));
       view.appendChild(grid);
     }
     menu();
@@ -402,9 +416,312 @@
     }
   }
 
+  /* ============================================================
+   * runSprint — shared 90-second sprint shell (timer + pause + HUD +
+   * scoring). The game supplies cfg.makeQ() and cfg.render(area, q, api).
+   * render() owns the per-question DOM (area is cleared each question);
+   * it calls api.recordAnswer(ok) to score and api.next() to advance.
+   * api also exposes running(), paused(), h, money, px.
+   * ============================================================ */
+  function runSprint(view, ctx, back, cfg) {
+    var h = ctx.h;
+    var ID = cfg.idPrefix;
+    var DUR = cfg.durationMs || 90000;
+    var state = { score: 0, correct: 0, attempted: 0, streak: 0, deadline: 0, remainingMs: 0, timerId: null, running: false, paused: false };
+
+    function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } }
+    function leave() { stopTimer(); state.running = false; back(); }
+
+    view.innerHTML = '';
+    view.appendChild(h('div', { class: 'row', style: 'margin-bottom:4px' }, [
+      h('button', { class: 'btn ghost', text: '← Drills', onclick: leave })
+    ]));
+    view.appendChild(h('h1', { text: cfg.title }));
+    view.appendChild(h('p', { class: 'sub', text: cfg.sub }));
+
+    var setup = h('div', { class: 'muted-box', style: 'margin-bottom:16px' });
+    setup.appendChild(h('div', { class: 'row' }, [
+      h('span', { class: 'tag-line', text: cfg.startNote }),
+      h('span', { style: 'flex:1' }),
+      h('button', { class: 'btn primary', text: '▶ Start', onclick: start })
+    ]));
+    view.appendChild(setup);
+
+    var hud = h('div', { class: 'row hud', style: 'margin-bottom:12px;display:none' }, [
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Time ' }), h('span', { id: ID + '-time', class: 'mono', text: (DUR / 1000) + 's' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Correct ' }), h('span', { id: ID + '-correct', class: 'mono', text: '0' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: ID + '-streak', class: 'mono', text: '0' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: ID + '-score', class: 'mono', text: '0' })]),
+      h('span', { style: 'flex:1' }),
+      h('button', { id: ID + '-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause })
+    ]);
+    view.appendChild(hud);
+    var pausedMsg = h('div', { class: 'paused-msg', style: 'display:none' }, '⏸ Paused — the clock is stopped and the question is hidden. Press Resume to continue.');
+    view.appendChild(pausedMsg);
+    var area = h('div');
+    view.appendChild(area);
+
+    function togglePause() {
+      if (!state.running) return;
+      var btn = document.getElementById(ID + '-pause');
+      if (!state.paused) {
+        state.paused = true;
+        state.remainingMs = Math.max(0, state.deadline - Date.now());
+        stopTimer();
+        if (btn) btn.textContent = '▶ Resume';
+        area.style.display = 'none';
+        pausedMsg.style.display = '';
+      } else {
+        state.paused = false;
+        state.deadline = Date.now() + state.remainingMs;
+        stopTimer();
+        state.timerId = setInterval(tick, 250);
+        tick();
+        if (btn) btn.textContent = '⏸ Pause';
+        pausedMsg.style.display = 'none';
+        area.style.display = '';
+        var inp = area.querySelector('input');
+        if (inp && !inp.readOnly) { inp.focus(); }
+        else { var fx = area.querySelector('[tabindex]'); if (fx) fx.focus(); }
+      }
+    }
+
+    function tick() {
+      var t = document.getElementById(ID + '-time');
+      if (!t) { stopTimer(); return; }                  // user navigated away mid-round
+      var left = Math.max(0, Math.ceil((state.deadline - Date.now()) / 1000));
+      t.textContent = left + 's';
+      t.style.color = left <= 10 ? '#ff5c5c' : '';
+      if (left <= 0) finish();
+    }
+
+    function syncHud() {
+      document.getElementById(ID + '-correct').textContent = state.correct;
+      document.getElementById(ID + '-streak').textContent = state.streak;
+      document.getElementById(ID + '-score').textContent = state.score;
+    }
+
+    var api = {
+      recordAnswer: function (ok) {
+        state.attempted++;
+        if (ok) { state.correct++; state.streak++; state.score += 10 + (state.streak - 1) * 2; }
+        else { state.streak = 0; }
+        syncHud();
+      },
+      next: function () { if (state.running && !state.paused) renderQ(); },
+      running: function () { return state.running; },
+      paused: function () { return state.paused; },
+      h: h, money: money, px: px
+    };
+
+    function renderQ() {
+      if (!state.running) return;
+      area.innerHTML = '';
+      cfg.render(area, cfg.makeQ(), api);
+    }
+
+    function start() {
+      state.score = 0; state.correct = 0; state.attempted = 0; state.streak = 0;
+      state.running = true; state.paused = false;
+      state.deadline = Date.now() + DUR;
+      hud.style.display = 'flex';
+      pausedMsg.style.display = 'none';
+      area.style.display = '';
+      var pb = document.getElementById(ID + '-pause'); if (pb) pb.textContent = '⏸ Pause';
+      stopTimer();
+      state.timerId = setInterval(tick, 250);
+      tick();
+      renderQ();
+    }
+
+    function finish() {
+      if (!state.running) return;
+      state.running = false; state.paused = false;
+      stopTimer();
+      var rec = ctx.Store.record(cfg.storeKey, { score: state.score });
+      hud.style.display = 'none';
+      pausedMsg.style.display = 'none';
+      area.style.display = '';
+      area.innerHTML = '';
+      var best = (rec.bestScore === state.score && state.score > 0) ? ' 🏆 new best!' : '';
+      var acc = state.attempted ? Math.round(100 * state.correct / state.attempted) : 0;
+      area.appendChild(h('div', { class: 'muted-box' }, [
+        h('h2', { text: 'Time! Score: ' + state.score + best }),
+        h('p', { class: 'tag-line', text: state.correct + ' correct of ' + state.attempted + ' answered (' + acc + '%) · best ' + (rec.bestScore || state.score) + ' · games played ' + rec.plays }),
+        h('div', { class: 'row' }, [
+          h('button', { class: 'btn primary', text: '▶ Play again', onclick: start }),
+          h('button', { class: 'btn', text: '← Drills', onclick: leave }),
+          h('button', { class: 'btn', text: '⌂ Home', onclick: function () { stopTimer(); state.running = false; ctx.home(); } })
+        ])
+      ]));
+    }
+  }
+
+  /* ---- Moneyness Flash ---- */
+  function makeMoneyness() {
+    var type = pick(['Call', 'Put']);
+    var K = ri(40, 180);
+    var which = pick(['ITM', 'ATM', 'OTM']);
+    var S;
+    if (which === 'ATM') {
+      S = K;                                  // exactly at the strike
+    } else {
+      var gap = ri(1, 25);
+      var frac = (Math.random() < 0.5) ? pick([0.25, 0.5, 0.75]) : 0;
+      // Call: ITM when stock is above the strike. Put: ITM when below.
+      var above = (type === 'Call') ? (which === 'ITM') : (which === 'OTM');
+      S = above ? (K + gap + frac) : (K - gap + frac);
+    }
+    return { type: type, K: K, S: round2(S), answer: which };
+  }
+
+  function runMoneyness(view, ctx, back) {
+    var lastResult = null;
+    runSprint(view, ctx, back, {
+      title: 'Moneyness Flash',
+      sub: 'A call is in-the-money when the stock is above the strike; a put, when it is below; at-the-money is exactly at the strike. Classify each option as fast as you can.',
+      startNote: '90 seconds · tap ITM / ATM / OTM, or press 1 / 2 / 3. Go fast.',
+      storeKey: 'moneyness', idPrefix: 'mf',
+      makeQ: makeMoneyness,
+      render: function (area, q, api) {
+        var h = api.h;
+        if (lastResult) {
+          area.appendChild(h('div', { class: 'feedback ' + (lastResult.ok ? 'ok' : 'no'), style: 'margin-bottom:10px', text: lastResult.text }));
+        }
+        var card = h('div', { class: 'muted-box', style: 'outline:none' });
+        card.tabIndex = 0;
+        var opt = h('div', { class: 'legs', style: 'font-size:18px;line-height:2' });
+        opt.innerHTML = '<span class="mono">' + q.type + '  ·  strike $' + px(q.K) + '</span><br>' +
+                        '<span class="mono">Stock now: $' + px(q.S) + '</span>';
+        card.appendChild(opt);
+        card.appendChild(h('div', { class: 'q-prompt', style: 'margin-top:10px', text: 'In, at, or out of the money?' }));
+
+        var locked = false;
+        function choose(p) {
+          if (locked || !api.running() || api.paused()) return;
+          locked = true;
+          var ok = (p === q.answer);
+          lastResult = ok
+            ? { ok: true, text: '✓ ' + q.type + ' $' + px(q.K) + ', stock $' + px(q.S) + ' → ' + q.answer }
+            : { ok: false, text: '✗ You tapped ' + p + ' — it was ' + q.answer + ' (' + q.type + ' $' + px(q.K) + ', stock $' + px(q.S) + ')' };
+          api.recordAnswer(ok);
+          api.next();
+        }
+
+        var row = h('div', { class: 'row', style: 'margin-top:12px' });
+        ['ITM', 'ATM', 'OTM'].forEach(function (lab, i) {
+          row.appendChild(h('button', { class: 'btn', style: 'min-width:96px;justify-content:center', text: '[' + (i + 1) + '] ' + lab, onclick: function () { choose(lab); } }));
+        });
+        card.appendChild(row);
+        card.addEventListener('keydown', function (e) {
+          if (e.key === '1') choose('ITM');
+          else if (e.key === '2') choose('ATM');
+          else if (e.key === '3') choose('OTM');
+        });
+        area.appendChild(card);
+        card.focus();
+      }
+    });
+  }
+
+  /* ---- Break-even (singles + verticals, one BE each) ---- */
+  function bePremium() { return ri(1, 12) + (Math.random() < 0.4 ? 0.5 : 0); }
+  function beStrike() { return ri(50, 160); }
+  function beWidth() { return pick([5, 10, 15, 20, 25]); }
+  function beEdge() { return pick([1, 2, 3, 4]) + (Math.random() < 0.4 ? 0.5 : 0); }
+  function beSmall() { return ri(1, 5) + (Math.random() < 0.4 ? 0.5 : 0); }
+  function beLeg(sign, text) { return '<span class="' + (sign === '+' ? 'buy' : 'sell') + '">' + sign + ' ' + text + '</span>'; }
+
+  var BE_TEMPLATES = [
+    function () {                                     // Long Call
+      var K = beStrike(), p = bePremium();
+      return { legs: [beLeg('+', '1 Call $' + px(K) + ' @ $' + px(p))], prompt: 'Break-even at expiration?',
+        answer: round2(K + p), explain: 'Long call breaks even at strike + premium = ' + px(K) + ' + ' + px(p) + ' = ' + money(K + p) + '.' };
+    },
+    function () {                                     // Long Put
+      var K = beStrike(), p = bePremium();
+      return { legs: [beLeg('+', '1 Put $' + px(K) + ' @ $' + px(p))], prompt: 'Break-even at expiration?',
+        answer: round2(K - p), explain: 'Long put breaks even at strike − premium = ' + px(K) + ' − ' + px(p) + ' = ' + money(K - p) + '.' };
+    },
+    function () {                                     // Bull Call Spread (debit)
+      var K1 = beStrike(), K2 = K1 + beWidth(), b = beSmall(), d = beEdge(), a = round2(b + d);
+      return { legs: [beLeg('+', '1 Call $' + px(K1) + ' @ $' + px(a)), beLeg('−', '1 Call $' + px(K2) + ' @ $' + px(b))], prompt: 'Break-even at expiration?',
+        answer: round2(K1 + d), explain: 'Net debit = ' + px(a) + ' − ' + px(b) + ' = ' + money(d) + '. Bull call spread breaks even at lower strike + net debit = ' + px(K1) + ' + ' + px(d) + ' = ' + money(K1 + d) + '.' };
+    },
+    function () {                                     // Bear Put Spread (debit)
+      var K1 = beStrike(), K2 = K1 + beWidth(), b = beSmall(), d = beEdge(), a = round2(b + d);
+      return { legs: [beLeg('+', '1 Put $' + px(K2) + ' @ $' + px(a)), beLeg('−', '1 Put $' + px(K1) + ' @ $' + px(b))], prompt: 'Break-even at expiration?',
+        answer: round2(K2 - d), explain: 'Net debit = ' + px(a) + ' − ' + px(b) + ' = ' + money(d) + '. Bear put spread breaks even at higher strike − net debit = ' + px(K2) + ' − ' + px(d) + ' = ' + money(K2 - d) + '.' };
+    },
+    function () {                                     // Bull Put Spread (credit)
+      var K1 = beStrike(), K2 = K1 + beWidth(), buy = beSmall(), cr = beEdge(), sell = round2(buy + cr);
+      return { legs: [beLeg('−', '1 Put $' + px(K2) + ' @ $' + px(sell)), beLeg('+', '1 Put $' + px(K1) + ' @ $' + px(buy))], prompt: 'Break-even at expiration?',
+        answer: round2(K2 - cr), explain: 'Net credit = ' + px(sell) + ' − ' + px(buy) + ' = ' + money(cr) + '. Bull put spread breaks even at the short strike − net credit = ' + px(K2) + ' − ' + px(cr) + ' = ' + money(K2 - cr) + '.' };
+    },
+    function () {                                     // Bear Call Spread (credit)
+      var K1 = beStrike(), K2 = K1 + beWidth(), buy = beSmall(), cr = beEdge(), sell = round2(buy + cr);
+      return { legs: [beLeg('−', '1 Call $' + px(K1) + ' @ $' + px(sell)), beLeg('+', '1 Call $' + px(K2) + ' @ $' + px(buy))], prompt: 'Break-even at expiration?',
+        answer: round2(K1 + cr), explain: 'Net credit = ' + px(sell) + ' − ' + px(buy) + ' = ' + money(cr) + '. Bear call spread breaks even at the short strike + net credit = ' + px(K1) + ' + ' + px(cr) + ' = ' + money(K1 + cr) + '.' };
+    },
+    function () {                                     // Covered Call
+      var S0 = beStrike(), c = bePremium(), K = S0 + pick([5, 10, 15]);
+      return { legs: [beLeg('+', '100 Shares @ $' + px(S0)), beLeg('−', '1 Call $' + px(K) + ' @ $' + px(c))], prompt: 'Break-even on the stock at expiration?',
+        answer: round2(S0 - c), explain: 'Covered call breaks even at stock cost − call premium received = ' + px(S0) + ' − ' + px(c) + ' = ' + money(S0 - c) + ' (the strike does not affect the break-even).' };
+    },
+    function () {                                     // Protective Put
+      var S0 = beStrike(), p = bePremium(), K = S0 - pick([5, 10, 15]);
+      return { legs: [beLeg('+', '100 Shares @ $' + px(S0)), beLeg('+', '1 Put $' + px(K) + ' @ $' + px(p))], prompt: 'Break-even on the stock at expiration?',
+        answer: round2(S0 + p), explain: 'Protective put breaks even at stock cost + put premium paid = ' + px(S0) + ' + ' + px(p) + ' = ' + money(S0 + p) + ' (the strike does not affect the break-even).' };
+    }
+  ];
+
+  function makeBreakeven() { return pick(BE_TEMPLATES)(); }
+
+  function runBreakeven(view, ctx, back) {
+    runSprint(view, ctx, back, {
+      title: 'Break-even',
+      sub: 'Find the underlying price where the position breaks even at expiration. Long call = strike + premium; long put = strike − premium; spreads = net the premiums, then apply to the right strike.',
+      startNote: '90 seconds · type the break-even price, Enter to submit. A miss pauses with the math.',
+      storeKey: 'breakeven', idPrefix: 'be',
+      makeQ: makeBreakeven,
+      render: function (area, q, api) {
+        var h = api.h;
+        var card = h('div', { class: 'muted-box' });
+        var legs = h('div', { class: 'legs', style: 'font-size:15px;line-height:2' });
+        legs.innerHTML = q.legs.join('<br>');
+        card.appendChild(legs);
+        card.appendChild(h('div', { class: 'q-prompt', style: 'margin-top:14px', text: q.prompt }));
+        var inp = h('input', { class: 'q-input', type: 'number', step: '0.5', placeholder: 'Break-even price ($)…', autocomplete: 'off', style: 'max-width:260px' });
+        card.appendChild(inp);
+        var submitBtn = h('button', { class: 'btn primary', style: 'margin-top:12px;display:block', text: 'Submit ▸', onclick: submit });
+        card.appendChild(submitBtn);
+        var fb = h('div', { style: 'margin-top:10px' });
+        card.appendChild(fb);
+        area.appendChild(card);
+        inp.focus();
+
+        var answered = false;
+        inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { if (answered) api.next(); else submit(); } });
+
+        function submit() {
+          if (answered || !api.running() || api.paused()) return;
+          var val = parseFloat(inp.value);
+          if (isNaN(val)) { inp.focus(); return; }
+          var ok = Math.abs(val - q.answer) < 0.01;
+          if (ok) { api.recordAnswer(true); api.next(); return; }
+          answered = true; api.recordAnswer(false);
+          inp.readOnly = true; submitBtn.disabled = true;
+          fb.appendChild(h('div', { class: 'feedback no', text: '✗ Break-even: ' + money(q.answer) + '. ' + q.explain }));
+          fb.appendChild(h('button', { class: 'btn primary', style: 'margin-top:8px', text: 'Next ▸ (Enter)', onclick: function () { api.next(); } }));
+          inp.focus();
+        }
+      }
+    });
+  }
+
   global.App.registerMode({
     id: 'drills', label: 'Drills', minStrategies: 0,
-    blurb: 'Mental-math drills. First up: Box Pricing — compute a box spread\'s cost, value, and edge.',
+    blurb: 'Fast mental-math drills: box pricing, option value, moneyness flash, and break-evens.',
     init: init
   });
 })(window);
