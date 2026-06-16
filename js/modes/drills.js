@@ -6,7 +6,8 @@
  *      Clean integers, type-the-number, timer + streak.
  *   2) Option Value — a single call/put + strike + stock price.
  *      Compute its intrinsic value at expiration, or (70% of the
- *      time) your P/L if you bought it for a given premium. Awkward
+ *      time) your P/L if you bought it for a premium. 90-second
+ *      sprint: answer as many as you can. Wide-ranging awkward
  *      dollar amounts with .25/.50 cents, mixed ITM/OTM.
  * ============================================================ */
 (function (global) {
@@ -30,7 +31,7 @@
         'Given a box spread\'s four legs and their prices, work out the net cost, what it\'s worth at expiration, or the locked-in profit.',
         ctx.Store.get('box-pricing'), function () { runBox(view, ctx, menu); }));
       grid.appendChild(card(h, 'Option Value',
-        'One call or put with a strike and the stock price. Compute what it\'s worth at expiration — or, if you bought it for a premium, your profit/loss. Awkward dollars, cents in play.',
+        '90-second sprint. One call or put with a strike and the stock price: compute what it\'s worth at expiration — or, if you bought it for a premium, your profit/loss. Answer as many as you can. Awkward dollars, cents in play.',
         ctx.Store.get('option-value'), function () { runOption(view, ctx, menu); }));
       view.appendChild(grid);
     }
@@ -198,11 +199,14 @@
     var useCents = Math.random() < 0.70;
     var itm = Math.random() < 0.6;            // ensure both ITM and OTM appear
 
-    var K = pick([62, 68, 73, 77, 84, 87, 91, 94, 103, 106, 112, 118, 123, 127, 134]);
-    var gap = pick([3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 17, 18, 21, 22]);
+    // Strike and gap are drawn fresh across a wide range each question, so stock
+    // prices, strikes and depths vary a lot. The stock's .25/.50 fraction is an
+    // independent pick from the premium's, so the two never lock together.
+    var K = ri(45, 175);
+    var gap = ri(1, 28);
     var sFrac = useCents ? pick([0.25, 0.5]) : 0;
 
-    // Place the stock so the option is ITM or OTM (gap ≥ 3 > frac, so sign holds).
+    // Place the stock so the option is ITM or OTM (gap ≥ 1 > frac ≤ 0.5, so the sign holds).
     var S = (type === 'Call')
       ? (itm ? K + gap + sFrac : K - gap + sFrac)
       : (itm ? K - gap + sFrac : K + gap + sFrac);
@@ -214,7 +218,7 @@
 
     var prem = 0, ans, prompt, explain;
     if (hasPrem) {
-      prem = pick([2, 3, 4, 5, 6, 7, 8, 9, 10]) + (useCents ? pick([0, 0.25, 0.5]) : 0);
+      prem = ri(1, 14) + (useCents ? pick([0, 0.25, 0.5]) : 0);
       ans = Math.round((intrinsic - prem) * 100) / 100;     // long P/L
       prompt = 'You bought this ' + type.toLowerCase() + '. What is your profit/loss at expiration? (negative = a loss, $ per share)';
       explain = 'Intrinsic value = ' + intrTxt + ' = ' + money(intrinsic) + '. You paid ' + money(prem) +
@@ -230,28 +234,33 @@
     return { type: type, K: K, S: S, prem: prem, hasPrem: hasPrem, answer: ans, prompt: prompt, explain: explain };
   }
 
-  /* ---- option-value game ---- */
+  /* ---- option-value game (90-second sprint) ---- */
   function runOption(view, ctx, back) {
     var h = ctx.h;
-    var state = { i: 0, n: 10, score: 0, streak: 0, qs: [], answered: false };
+    var ROUND_MS = 90000;
+    var state = { score: 0, correct: 0, attempted: 0, streak: 0, deadline: 0, timerId: null, q: null, answered: false, running: false };
+
+    function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } }
+    function leave() { stopTimer(); state.running = false; back(); }
 
     view.innerHTML = '';
     view.appendChild(h('div', { class: 'row', style: 'margin-bottom:4px' }, [
-      h('button', { class: 'btn ghost', text: '← Drills', onclick: back })
+      h('button', { class: 'btn ghost', text: '← Drills', onclick: leave })
     ]));
     view.appendChild(h('h1', { text: 'Option Value' }));
-    view.appendChild(h('p', { class: 'sub', text: 'A call is worth max(stock − strike, 0) at expiration; a put, max(strike − stock, 0) — never less than zero. If you paid a premium, your P/L is that value minus what you paid. Do it in your head.' }));
+    view.appendChild(h('p', { class: 'sub', text: 'A call is worth max(stock − strike, 0) at expiration; a put, max(strike − stock, 0) — never less than zero. If you bought it for a premium, your P/L is that value minus what you paid. 90-second sprint: answer as many as you can.' }));
 
     var setup = h('div', { class: 'muted-box', style: 'margin-bottom:16px' });
-    var cs = h('input', { class: 'q-input pairs-input', type: 'number', min: '5', max: '25', step: '1', value: '10' });
     setup.appendChild(h('div', { class: 'row' }, [
-      h('span', { class: 'tag-line', text: 'Questions' }), cs,
+      h('span', { class: 'tag-line', text: '90 seconds · type your answer, Enter to submit. Correct answers fly straight to the next; a miss pauses so you can read why.' }),
+      h('span', { style: 'flex:1' }),
       h('button', { class: 'btn primary', text: '▶ Start', onclick: start })
     ]));
     view.appendChild(setup);
 
     var hud = h('div', { class: 'row hud', style: 'margin-bottom:12px;display:none' }, [
-      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Q ' }), h('span', { id: 'ov-q', class: 'mono', text: '0' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Time ' }), h('span', { id: 'ov-time', class: 'mono', text: '90s' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Correct ' }), h('span', { id: 'ov-correct', class: 'mono', text: '0' })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: 'ov-streak', class: 'mono', text: '0' })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'ov-score', class: 'mono', text: '0' })])
     ]);
@@ -260,19 +269,33 @@
     view.appendChild(area);
 
     function start() {
-      state.n = Math.max(5, Math.min(25, parseInt(cs.value, 10) || 10));
-      state.qs = []; for (var i = 0; i < state.n; i++) state.qs.push(makeOption());
-      state.i = 0; state.score = 0; state.streak = 0;
+      state.score = 0; state.correct = 0; state.attempted = 0; state.streak = 0;
+      state.running = true;
+      state.deadline = Date.now() + ROUND_MS;
       hud.style.display = 'flex';
+      stopTimer();
+      state.timerId = setInterval(tick, 250);
+      tick();
       renderQ();
     }
 
+    function tick() {
+      var timeEl = document.getElementById('ov-time');
+      if (!timeEl) { stopTimer(); return; }              // user navigated away mid-round
+      var left = Math.max(0, Math.ceil((state.deadline - Date.now()) / 1000));
+      timeEl.textContent = left + 's';
+      timeEl.style.color = left <= 10 ? '#ff5c5c' : '';
+      if (left <= 0) finish();
+    }
+
     function renderQ() {
-      var q = state.qs[state.i];
+      if (!state.running) return;
+      state.q = makeOption();
       state.answered = false;
       area.innerHTML = '';
-      document.getElementById('ov-q').textContent = (state.i + 1) + '/' + state.qs.length;
-      sync();
+
+      var q = state.q;
+      function advance() { if (state.running) renderQ(); }
 
       var card = h('div', { class: 'muted-box' });
       var posBox = h('div', { class: 'legs', style: 'font-size:15px;line-height:2' });
@@ -285,7 +308,8 @@
 
       card.appendChild(h('div', { class: 'q-prompt', style: 'margin-top:14px', text: q.prompt }));
       var inp = h('input', { class: 'q-input', type: 'number', step: '0.25', placeholder: 'Your answer ($ per share)…', autocomplete: 'off', style: 'max-width:260px' });
-      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+      // Enter submits while unanswered; once a miss is showing, Enter advances.
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { if (state.answered) advance(); else submit(); } });
       card.appendChild(inp);
       var submitBtn = h('button', { class: 'btn primary', style: 'margin-top:12px;display:block', text: 'Submit ▸', onclick: submit });
       card.appendChild(submitBtn);
@@ -294,43 +318,52 @@
       inp.focus();
 
       function submit() {
-        if (state.answered) return;
+        if (state.answered || !state.running) return;
         var val = parseFloat(inp.value);
         if (isNaN(val)) { inp.focus(); return; }
-        state.answered = true;
-        inp.disabled = true; submitBtn.disabled = true;
+        state.attempted++;
         var correct = Math.abs(val - q.answer) < 0.01;
-        if (correct) { state.streak++; state.score += 10 + (state.streak - 1) * 2; } else { state.streak = 0; }
-        sync();
+        if (correct) {
+          state.correct++; state.streak++; state.score += 10 + (state.streak - 1) * 2;
+          syncHud();
+          renderQ();                       // instant next — keep the sprint moving
+          return;
+        }
+        // miss: reset streak and pause to show the worked answer
+        state.answered = true; state.streak = 0;
+        inp.readOnly = true; submitBtn.disabled = true;
+        syncHud();
         var fb = document.getElementById('ov-fb');
-        fb.appendChild(h('div', { class: 'feedback ' + (correct ? 'ok' : 'no'),
-          text: (correct ? '✓ Correct. ' : '✗ Answer: ' + money(q.answer) + '. ') + q.explain }));
-        var last = state.i === state.qs.length - 1;
-        fb.appendChild(h('button', { class: 'btn primary', style: 'margin-top:8px', text: last ? 'Finish ▸' : 'Next ▸', onclick: function () {
-          state.i++; if (state.i >= state.qs.length) finish(); else renderQ();
-        } }));
+        fb.appendChild(h('div', { class: 'feedback no', text: '✗ Answer: ' + money(q.answer) + '. ' + q.explain }));
+        fb.appendChild(h('button', { class: 'btn primary', style: 'margin-top:8px', text: 'Next ▸ (Enter)', onclick: advance }));
+        inp.focus();                       // keep focus so Enter advances
       }
     }
 
-    function sync() {
+    function syncHud() {
+      document.getElementById('ov-correct').textContent = state.correct;
       document.getElementById('ov-streak').textContent = state.streak;
       document.getElementById('ov-score').textContent = state.score;
     }
 
     function finish() {
+      if (!state.running) return;
+      state.running = false;
+      stopTimer();
       var rec = ctx.Store.record('option-value', { score: state.score });
+      var timeEl = document.getElementById('ov-time'); if (timeEl) { timeEl.textContent = '0s'; timeEl.style.color = ''; }
       area.innerHTML = '';
-      var best = (rec.bestScore === state.score) ? ' 🏆 new best!' : '';
+      var best = (rec.bestScore === state.score && state.score > 0) ? ' 🏆 new best!' : '';
+      var acc = state.attempted ? Math.round(100 * state.correct / state.attempted) : 0;
       area.appendChild(h('div', { class: 'muted-box' }, [
-        h('h2', { text: 'Final score: ' + state.score + best }),
-        h('p', { class: 'tag-line', text: 'Best: ' + (rec.bestScore || state.score) + ' · games played: ' + rec.plays }),
+        h('h2', { text: 'Time! Score: ' + state.score + best }),
+        h('p', { class: 'tag-line', text: state.correct + ' correct of ' + state.attempted + ' answered (' + acc + '%) · best ' + (rec.bestScore || state.score) + ' · games played ' + rec.plays }),
         h('div', { class: 'row' }, [
           h('button', { class: 'btn primary', text: '▶ Play again', onclick: start }),
-          h('button', { class: 'btn', text: '← Drills', onclick: back }),
-          h('button', { class: 'btn', text: '⌂ Home', onclick: ctx.home })
+          h('button', { class: 'btn', text: '← Drills', onclick: leave }),
+          h('button', { class: 'btn', text: '⌂ Home', onclick: function () { stopTimer(); state.running = false; ctx.home(); } })
         ])
       ]));
-      hud.style.display = 'none';
     }
   }
 
