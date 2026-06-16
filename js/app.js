@@ -98,12 +98,13 @@
   function renderHome() {
     var v = App._view;
     v.appendChild(h('h1', { text: 'Options Strategy Trainer' }));
-    v.appendChild(h('p', { class: 'sub', text: 'Learn to recognize options strategies by their legs, payoff graph, market outlook, and net Greek profile. Pick your scope, then choose a mode.' }));
+    v.appendChild(h('p', { class: 'sub', text: 'Learn to recognize options strategies by their legs, payoff graph, market outlook, and net Greek profile. Pick a mode below to get started.' }));
 
-    /* --- session scope panel --- */
-    var scope = h('div', { class: 'muted-box', style: 'margin-bottom:24px' });
-    scope.appendChild(h('div', { class: 'row', style: 'justify-content:space-between' }, [
-      h('strong', { text: 'Session scope' }),
+    /* --- session scope: collapsed by default behind a "Filter strategies" toggle --- */
+    var scope = h('details', { class: 'glossary', style: 'margin-top:0;margin-bottom:24px' });
+    scope.appendChild(h('summary', { text: 'Filter strategies' }));
+    scope.appendChild(h('div', { class: 'row', style: 'justify-content:space-between;margin-top:6px' }, [
+      h('span', { class: 'tag-line', text: 'Choose which strategies appear across the games.' }),
       h('span', { id: 'active-count', class: 'tag-line' })
     ]));
 
