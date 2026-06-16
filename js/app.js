@@ -101,7 +101,7 @@
     v.appendChild(h('p', { class: 'sub', text: 'An interactive crash course in options — see how each strategy is built, what it pays off, and when you\'d use it. Pick a mode below to start.' }));
 
     /* --- session scope: collapsed by default behind a "Filter strategies" toggle --- */
-    var scope = h('details', { class: 'glossary', style: 'margin-top:0;margin-bottom:24px' });
+    var scope = h('details', { class: 'glossary', style: 'margin-top:24px;margin-bottom:24px' });
     scope.appendChild(h('summary', { text: 'Filter strategies' }));
     scope.appendChild(h('div', { class: 'row', style: 'justify-content:space-between;margin-top:6px' }, [
       h('span', { class: 'tag-line', text: 'Choose which strategies appear across the games.' }),
