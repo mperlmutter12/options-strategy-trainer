@@ -98,7 +98,7 @@
   function renderHome() {
     var v = App._view;
     v.appendChild(h('h1', { text: 'Options Strategy Trainer' }));
-    v.appendChild(h('p', { class: 'sub', text: 'Learn to recognize options strategies by their legs, payoff graph, market outlook, and net Greek profile. Pick a mode below to get started.' }));
+    v.appendChild(h('p', { class: 'sub', text: 'An interactive crash course in options — see how each strategy is built, what it pays off, and when you\'d use it. Pick a mode below to start.' }));
 
     /* --- session scope: collapsed by default behind a "Filter strategies" toggle --- */
     var scope = h('details', { class: 'glossary', style: 'margin-top:0;margin-bottom:24px' });
@@ -127,7 +127,7 @@
       }));
     });
     scope.appendChild(catRow);
-    v.appendChild(scope);
+    // (appended below the mode cards — see after the grid)
 
     /* --- mode cards --- */
     var grid = h('div', { class: 'grid' });
@@ -150,6 +150,8 @@
       grid.appendChild(card);
     });
     v.appendChild(grid);
+
+    v.appendChild(scope);   // strategy filter sits below the mode cards
 
     v.appendChild(renderGlossary());
 
