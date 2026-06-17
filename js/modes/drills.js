@@ -48,8 +48,8 @@
         '90-second sprint. Given a strategy\'s legs and per-leg premiums, type the break-even price. Singles are one step; verticals make you net the premiums first.',
         ctx.Store.get('breakeven'), function () { runBreakeven(view, ctx, menu); }));
       grid.appendChild(card(h, 'Greeks: Identify',
-        'Timed — 10 questions, race the clock. Spot which strategy carries a Greek, and match strategies to their full Δ/Γ/Θ/V profile.',
-        ctx.Store.get('greeks'), function () { launchQuiz(view, ctx, menu, 'greeksIdentify', { title: 'Greeks: Identify', storeKey: 'greeks', blurb: 'Identify which strategy carries a Greek, and match strategies to their full Δ/Γ/Θ/V profile. Ten questions, against the clock.' }); }));
+        'Answer until you get 10 correct — spot which strategy carries a Greek, and match strategies to their full Δ/Γ/Θ/V profile.',
+        ctx.Store.get('greeks'), function () { launchQuiz(view, ctx, menu, 'greeksIdentify', { title: 'Greeks: Identify', storeKey: 'greeks', runner: runUntilCorrect, blurb: 'Spot which strategy carries a Greek, and match strategies to their full Δ/Γ/Θ/V profile. Keep going until you get 10 correct.' }); }));
       grid.appendChild(card(h, 'Greeks: Predict P&L',
         'Timed — 10 questions. A scenario hits (price, vol, or time); decide whether the position profits, loses, or barely changes.',
         ctx.Store.get('greeks-predict'), function () { launchQuiz(view, ctx, menu, 'greeksPredict', { title: 'Greeks: Predict the P&L', storeKey: 'greeks-predict', blurb: 'A scenario hits — price moves, vol shifts, or time passes. Decide whether the position profits, loses, or barely changes. Ten questions, against the clock.' }); }));
@@ -888,7 +888,113 @@
     }
   }
 
-  /* ---- launch a strategy-based timed quiz from the Drills menu (needs ≥4 strategies) ---- */
+  /* ---- "answer until N correct" MC quiz (no clock) ----
+     Keeps serving questions until you've gotten TARGET correct; wrong answers
+     just don't count toward it. Tracks attempts + accuracy; best score saved. */
+  function runUntilCorrect(view, ctx, back, cfg) {
+    var h = ctx.h;
+    var TARGET = 10;
+    var state = { correct: 0, attempts: 0, streak: 0, score: 0, answered: false };
+
+    view.innerHTML = '';
+    view.appendChild(h('div', { class: 'row', style: 'margin-bottom:4px' }, [
+      h('button', { class: 'btn ghost', text: '← Drills', onclick: back })
+    ]));
+    view.appendChild(h('h1', { text: cfg.title }));
+    view.appendChild(h('p', { class: 'sub', text: cfg.blurb }));
+
+    var setup = h('div', { class: 'muted-box', style: 'margin-bottom:16px' });
+    setup.appendChild(h('div', { class: 'row' }, [
+      h('span', { class: 'tag-line', text: 'Keep answering until you get ' + TARGET + ' correct.' }),
+      h('span', { style: 'flex:1' }),
+      h('button', { class: 'btn primary', text: '▶ Start', onclick: start })
+    ]));
+    view.appendChild(setup);
+
+    var hud = h('div', { class: 'row hud', style: 'margin-bottom:12px;display:none' }, [
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Correct ' }), h('span', { id: 'uc-correct', class: 'mono', text: '0/' + TARGET })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Attempts ' }), h('span', { id: 'uc-att', class: 'mono', text: '0' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: 'uc-streak', class: 'mono', text: '0' })]),
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'uc-score', class: 'mono', text: '0' })])
+    ]);
+    view.appendChild(hud);
+    var area = h('div');
+    view.appendChild(area);
+
+    function start() {
+      state.correct = 0; state.attempts = 0; state.streak = 0; state.score = 0;
+      hud.style.display = 'flex';
+      sync();
+      renderQ();
+    }
+
+    function sync() {
+      document.getElementById('uc-correct').textContent = state.correct + '/' + TARGET;
+      document.getElementById('uc-att').textContent = state.attempts;
+      document.getElementById('uc-streak').textContent = state.streak;
+      document.getElementById('uc-score').textContent = state.score;
+    }
+
+    function renderQ() {
+      var q = null, guard = 0;
+      while (!q && guard < 25) { q = cfg.make(); guard++; }
+      area.innerHTML = '';
+      if (!q) {
+        hud.style.display = 'none';
+        area.appendChild(h('div', { class: 'feedback no', text: 'Not enough distinct strategies in your current scope to build this quiz. Widen your tiers / categories on the Home screen.' }));
+        return;
+      }
+      state.answered = false;
+      var card = h('div', { class: 'muted-box' });
+      card.appendChild(h('div', { class: 'q-prompt', text: q.promptText || q.prompt }));
+      if (q.promptMono) card.appendChild(h('div', { class: 'greek-profile-prompt mono', text: q.promptMono }));
+      var optWrap = h('div', { class: 'q-options' });
+      q.options.forEach(function (opt, oi) {
+        optWrap.appendChild(h('button', { class: 'q-opt' + (q.mono ? ' mono' : ''), text: opt, onclick: function () { answer(oi, optWrap, q); } }));
+      });
+      card.appendChild(optWrap);
+      card.appendChild(h('div', { id: 'uc-fb', style: 'margin-top:10px' }));
+      area.appendChild(card);
+    }
+
+    function answer(oi, optWrap, q) {
+      if (state.answered) return;
+      state.answered = true;
+      state.attempts++;
+      var correct = oi === q.answer;
+      Array.prototype.forEach.call(optWrap.children, function (b, idx) {
+        b.disabled = true;
+        if (idx === q.answer) b.classList.add('opt-correct');
+        else if (idx === oi) b.classList.add('opt-wrong');
+      });
+      if (correct) { state.correct++; state.streak++; state.score += 10 + (state.streak - 1) * 2; } else { state.streak = 0; }
+      sync();
+      var done = state.correct >= TARGET;
+      var fb = document.getElementById('uc-fb');
+      fb.appendChild(h('div', { class: 'feedback ' + (correct ? 'ok' : 'no'), text: (correct ? '✓ ' : '✗ ') + q.explain }));
+      fb.appendChild(h('button', { class: 'btn primary', style: 'margin-top:8px', text: done ? 'Finish ▸' : 'Next ▸', onclick: function () { if (done) finish(); else renderQ(); } }));
+    }
+
+    function finish() {
+      var acc = state.attempts ? Math.round(100 * state.correct / state.attempts) : 0;
+      var rec = ctx.Store.record(cfg.storeKey, { score: state.score });
+      area.innerHTML = '';
+      hud.style.display = 'none';
+      var best = (rec.bestScore === state.score && state.score > 0) ? ' 🏆 new best!' : '';
+      area.appendChild(h('div', { class: 'muted-box' }, [
+        h('h2', { text: TARGET + ' correct! Score: ' + state.score + best }),
+        h('p', { class: 'tag-line', text: 'Took ' + state.attempts + ' questions (' + acc + '% accuracy) · best ' + (rec.bestScore || state.score) + ' · plays ' + rec.plays }),
+        h('div', { class: 'row' }, [
+          h('button', { class: 'btn primary', text: '▶ Play again', onclick: start }),
+          h('button', { class: 'btn', text: '← Drills', onclick: back }),
+          h('button', { class: 'btn', text: '⌂ Home', onclick: ctx.home })
+        ])
+      ]));
+    }
+  }
+
+  /* ---- launch a strategy-based quiz from the Drills menu (needs ≥4 strategies) ----
+     Defaults to the timed runner; meta.runner can override (e.g. runUntilCorrect). */
   function launchQuiz(view, ctx, back, factoryName, meta) {
     var h = ctx.h;
     var DB = global.DrillBank || {};
@@ -903,7 +1009,8 @@
       ]));
       return;
     }
-    runTimedQuiz(view, ctx, back, { title: meta.title, blurb: meta.blurb, storeKey: meta.storeKey, make: DB[factoryName](pool) });
+    var runner = meta.runner || runTimedQuiz;
+    runner(view, ctx, back, { title: meta.title, blurb: meta.blurb, storeKey: meta.storeKey, make: DB[factoryName](pool) });
   }
 
   /* ---- publish the numeric generators so Test can reuse them (one source of math) ---- */
