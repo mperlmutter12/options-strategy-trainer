@@ -132,7 +132,9 @@
     var hud = h('div', { class: 'row hud', style: 'margin-bottom:12px;display:none' }, [
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Q ' }), h('span', { id: 'bx-q', class: 'mono', text: '0' })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: 'bx-streak', class: 'mono', text: '0' })]),
-      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'bx-score', class: 'mono', text: '0' })])
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'bx-score', class: 'mono', text: '0' })]),
+      h('span', { style: 'flex:1' }),
+      h('button', { class: 'btn ghost', text: '↻ Reset', onclick: function () { start(); } })
     ]);
     view.appendChild(hud);
     var area = h('div');
@@ -288,7 +290,8 @@
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: 'ov-streak', class: 'mono', text: '0' })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'ov-score', class: 'mono', text: '0' })]),
       h('span', { style: 'flex:1' }),
-      h('button', { id: 'ov-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause })
+      h('button', { id: 'ov-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause }),
+      h('button', { class: 'btn ghost', text: '↻ Reset', onclick: function () { start(); } })
     ]);
     view.appendChild(hud);
     var pausedMsg = h('div', { class: 'paused-msg', style: 'display:none' }, '⏸ Paused — the clock is stopped and the question is hidden. Press Resume to continue.');
@@ -437,6 +440,7 @@
     var h = ctx.h;
     var ID = cfg.idPrefix;
     var DUR = cfg.durationMs || 90000;
+    var STREAK_STEP = cfg.streakStep || 2;   // per-question streak bonus growth (Moneyness uses 1, others 2)
     var state = { score: 0, correct: 0, attempted: 0, streak: 0, deadline: 0, remainingMs: 0, timerId: null, running: false, paused: false };
 
     function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } }
@@ -463,7 +467,8 @@
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: ID + '-streak', class: 'mono', text: '0' })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: ID + '-score', class: 'mono', text: '0' })]),
       h('span', { style: 'flex:1' }),
-      h('button', { id: ID + '-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause })
+      h('button', { id: ID + '-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause }),
+      h('button', { class: 'btn ghost', text: '↻ Reset', onclick: function () { start(); } })
     ]);
     view.appendChild(hud);
     var pausedMsg = h('div', { class: 'paused-msg', style: 'display:none' }, '⏸ Paused — the clock is stopped and the question is hidden. Press Resume to continue.');
@@ -514,7 +519,7 @@
     var api = {
       recordAnswer: function (ok) {
         state.attempted++;
-        if (ok) { state.correct++; state.streak++; state.score += 10 + (state.streak - 1) * 2; }
+        if (ok) { state.correct++; state.streak++; state.score += 10 + (state.streak - 1) * STREAK_STEP; }
         else { state.streak = 0; }
         syncHud();
       },
@@ -593,7 +598,7 @@
       title: 'Moneyness Flash',
       sub: 'A call is in-the-money when the stock is above the strike; a put, when it is below; at-the-money is exactly at the strike. Classify each option as fast as you can.',
       startNote: '90 seconds · tap ITM / ATM / OTM, or press 1 / 2 / 3. Go fast.',
-      storeKey: 'moneyness', idPrefix: 'mf',
+      storeKey: 'moneyness', idPrefix: 'mf', streakStep: 1,   // fast reflex game — gentler streak bonus
       makeQ: makeMoneyness,
       render: function (area, q, api) {
         var h = api.h;
@@ -786,7 +791,8 @@
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Q ' }), h('span', { id: 'tq-q', class: 'mono', text: '0/' + N })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Correct ' }), h('span', { id: 'tq-correct', class: 'mono', text: '0' })]),
       h('span', { style: 'flex:1' }),
-      h('button', { id: 'tq-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause })
+      h('button', { id: 'tq-pause', class: 'btn ghost', text: '⏸ Pause', onclick: togglePause }),
+      h('button', { class: 'btn ghost', text: '↻ Reset', onclick: function () { start(); } })
     ]);
     view.appendChild(hud);
     var pausedMsg = h('div', { class: 'paused-msg', style: 'display:none' }, '⏸ Paused — the clock is stopped and the question is hidden. Press Resume to continue.');
@@ -915,7 +921,9 @@
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Correct ' }), h('span', { id: 'uc-correct', class: 'mono', text: '0/' + TARGET })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Attempts ' }), h('span', { id: 'uc-att', class: 'mono', text: '0' })]),
       h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Streak ' }), h('span', { id: 'uc-streak', class: 'mono', text: '0' })]),
-      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'uc-score', class: 'mono', text: '0' })])
+      h('span', { class: 'hud-stat' }, [h('span', { class: 'dim', text: 'Score ' }), h('span', { id: 'uc-score', class: 'mono', text: '0' })]),
+      h('span', { style: 'flex:1' }),
+      h('button', { class: 'btn ghost', text: '↻ Reset', onclick: function () { start(); } })
     ]);
     view.appendChild(hud);
     var area = h('div');

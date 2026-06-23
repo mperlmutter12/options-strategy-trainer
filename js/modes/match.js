@@ -290,12 +290,18 @@
       var ms = elapsedMs();
       clearInterval(state.timer);
       document.getElementById('m-time').textContent = (ms / 1000).toFixed(1) + 's';
+      // Speed bonus (a medium driver): par is 5s per pair; earn +2 points for every
+      // second you finish under par, never negative. Folded into the score.
+      var parSec = 5 * state.total;
+      var speedBonus = Math.max(0, Math.round((parSec - ms / 1000) * 2));
+      state.score += speedBonus;
+      document.getElementById('m-score').textContent = state.score;
       var rec = ctx.Store.record('match', { score: state.score, total: state.total, timeMs: ms });
       var best = (rec.bestTimeMs === ms) ? ' 🏆 new best time!' : '';
       summary.innerHTML = '';
       summary.appendChild(h('div', { class: 'muted-box', style: 'margin-top:16px' }, [
         h('h2', { text: 'Round complete' + best }),
-        h('p', { class: 'mono', text: 'Time ' + (ms / 1000).toFixed(1) + 's  ·  Score ' + state.score +
+        h('p', { class: 'mono', text: 'Time ' + (ms / 1000).toFixed(1) + 's  ·  Score ' + state.score + ' (incl. +' + speedBonus + ' speed)' +
           '  ·  Best time ' + ctx.Store.fmtTime(rec.bestTimeMs) + '  ·  Best score ' + (rec.bestScore || 0) }),
         h('div', { class: 'row' }, [
           h('button', { class: 'btn primary', text: '▶ Play again', onclick: start }),
