@@ -384,7 +384,7 @@
         state.attempted++;
         var correct = Math.abs(val - q.answer) < 0.01;
         if (correct) {
-          state.correct++; state.streak++; state.score += 10 + (state.streak - 1) * 2;
+          state.correct++; state.streak++; state.score += 10;   // flat 10 per correct — no streak multiplier
           syncHud();
           renderQ();                       // instant next — keep the sprint moving
           return;
