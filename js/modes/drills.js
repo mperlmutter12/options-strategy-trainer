@@ -181,7 +181,7 @@
         state.answered = true;
         inp.disabled = true; submitBtn.disabled = true;
         var correct = Math.abs(val - q.answer) < 0.01;
-        if (correct) { state.streak++; state.score += 10 + (state.streak - 1) * 2; } else { state.streak = 0; }
+        if (correct) { state.streak++; state.score += 10; } else { state.streak = 0; }   // flat 10 per correct — no streak multiplier
         sync();
         var fb = document.getElementById('bx-fb');
         fb.appendChild(h('div', { class: 'feedback ' + (correct ? 'ok' : 'no'),
@@ -440,7 +440,7 @@
     var h = ctx.h;
     var ID = cfg.idPrefix;
     var DUR = cfg.durationMs || 90000;
-    var STREAK_STEP = cfg.streakStep || 2;   // per-question streak bonus growth (Moneyness uses 1, others 2)
+    var STREAK_STEP = (cfg.streakStep != null) ? cfg.streakStep : 2;   // per-question streak bonus growth (Moneyness 1, Break-even 0, others 2)
     var state = { score: 0, correct: 0, attempted: 0, streak: 0, deadline: 0, remainingMs: 0, timerId: null, running: false, paused: false };
 
     function stopTimer() { if (state.timerId) { clearInterval(state.timerId); state.timerId = null; } }
@@ -699,7 +699,7 @@
       title: 'Break-even',
       sub: 'Find the underlying price where the position breaks even at expiration. Long call = strike + premium; long put = strike − premium; spreads = net the premiums, then apply to the right strike.',
       startNote: '90 seconds · type the break-even price, Enter to submit. A miss pauses with the math.',
-      storeKey: 'breakeven', idPrefix: 'be',
+      storeKey: 'breakeven', idPrefix: 'be', streakStep: 0,   // flat 10 per correct — no streak multiplier
       makeQ: makeBreakeven,
       render: function (area, q, api) {
         var h = api.h;
