@@ -179,12 +179,16 @@ begin
   if v_owner is not null and v_owner <> p_token then
     raise exception 'name_taken';
   end if;
-  update players set nickname = p_new where owner_token = p_token;
-  update scores  set nickname = p_new where owner_token = p_token;
-  if not exists (select 1 from players where owner_token = p_token) then
-    insert into players (nickname, owner_token) values (p_new, p_token);
-  end if;
+  -- Collapse any claim rows this token holds into exactly one row for the new
+  -- name (a token normally owns one, but delete-then-insert is robust if it
+  -- somehow owns several — a blind UPDATE could hit the nickname PK on 2+ rows).
+  delete from players where owner_token = p_token;
+  insert into players (nickname, owner_token) values (p_new, p_token);
+  update scores set nickname = p_new where owner_token = p_token;
   return 'ok';
+exception when unique_violation then
+  -- lost a race to another token claiming the same (case-insensitive) name
+  raise exception 'name_taken';
 end;
 $$;
 

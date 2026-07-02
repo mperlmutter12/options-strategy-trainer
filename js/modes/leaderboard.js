@@ -53,7 +53,7 @@
 
     if (!LB || !LB.configured()) {
       view.appendChild(h('div', { class: 'muted-box' }, [
-        h('p', { class: 'sub', text: 'The leaderboard is not set up yet. Once it is, scores you post from any game show up here.' })
+        h('p', { class: 'sub', text: 'The leaderboard is not set up yet. Once it is, your scores show up here automatically.' })
       ]));
       return;
     }
@@ -125,7 +125,7 @@
         var all = dedupeSort(rows || [], state.sort);
         if (!all.length) {
           area.appendChild(h('div', { class: 'muted-box' }, [
-            h('p', { class: 'sub', text: 'No scores yet — be the first. Post one from the game’s results screen.' })
+            h('p', { class: 'sub', text: 'No scores yet — be the first. Finish a game and your score saves here automatically.' })
           ]));
           return;
         }

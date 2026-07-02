@@ -5,17 +5,17 @@
  * endpoints, so there is NO external dependency and nothing to vendor.
  * The public anon key (window.LB_CONFIG) goes in the request headers.
  *
- * All WRITES go through the submit_score RPC (the only path RLS allows).
- * READS are plain GETs against the public-readable `scores` table.
+ * All WRITES go through the submit_score / rename_player RPCs (the only paths
+ * RLS allows). READS are plain GETs against the public-readable `scores` table.
  *
  * Exposes global.Leaderboard:
  *   configured()                       -> bool (is the anon key filled in?)
  *   token()                            -> this browser's stable owner_token
  *   getNickname() / setNickname(n)
  *   postScore(game, {score,correct,attempted}, nickname?) -> Promise<{ok,error?}>
- *   board(game, category, limit?)      -> Promise<row[]>
- *   myRow(game, category)              -> Promise<row|null>
- *   rankOf(game, category, score)      -> Promise<number|null>
+ *   board(game, limit?)                -> Promise<row[]> (all rows for a game)
+ *   mountResult(container, game, stats)-> auto-post a finished run (or ask a name)
+ *   renamePlayer(newNick)              -> Promise<{ok,error?}> (claim/rename)
  *   GAMES                              -> [{id,label}, ...]
  * ============================================================ */
 (function (global) {
@@ -158,6 +158,10 @@
                 : r.error === 'invalid_score' ? 'That score could not be saved.'
                 : 'Leaderboard unavailable right now.';
         wrap.appendChild(el('div', { class: 'feedback no', text: '✗ ' + msg }));
+        // let a transient failure (network/rate limit) be retried without replaying the game
+        var retry = el('button', { class: 'btn', style: 'margin-top:8px', text: '↻ Try again' });
+        retry.onclick = function () { post(nick); };
+        wrap.appendChild(retry);
       });
     }
 
