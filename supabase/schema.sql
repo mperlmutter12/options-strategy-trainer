@@ -159,11 +159,46 @@ begin
 end;
 $$;
 
+-- ---- write path: rename_player() ----------------------------
+-- Lets a browser claim a nickname or rename its current one. Validates the
+-- name, rejects a name already owned by a different token, and updates this
+-- token's claim + all its score rows so the board shows the new name at once.
+create or replace function rename_player(p_token uuid, p_new text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+begin
+  if p_new is null or p_new !~ '^[A-Za-z0-9 _-]{2,16}$' then
+    raise exception 'invalid_nickname';
+  end if;
+  select owner_token into v_owner from players where lower(nickname) = lower(p_new);
+  if v_owner is not null and v_owner <> p_token then
+    raise exception 'name_taken';
+  end if;
+  -- Collapse any claim rows this token holds into exactly one row for the new
+  -- name (a token normally owns one, but delete-then-insert is robust if it
+  -- somehow owns several — a blind UPDATE could hit the nickname PK on 2+ rows).
+  delete from players where owner_token = p_token;
+  insert into players (nickname, owner_token) values (p_new, p_token);
+  update scores set nickname = p_new where owner_token = p_token;
+  return 'ok';
+exception when unique_violation then
+  -- lost a race to another token claiming the same (case-insensitive) name
+  raise exception 'name_taken';
+end;
+$$;
+
 -- ---- grants --------------------------------------------------
--- anon/authenticated may EXECUTE the function and SELECT boards, nothing else.
+-- anon/authenticated may EXECUTE the write functions and SELECT boards, nothing else.
 
 revoke all on function submit_score(text, text, uuid, int, int, int) from public;
+revoke all on function rename_player(uuid, text) from public;
 grant execute on function submit_score(text, text, uuid, int, int, int) to anon, authenticated;
+grant execute on function rename_player(uuid, text) to anon, authenticated;
 grant select on scores to anon, authenticated;
 
 -- ============================================================

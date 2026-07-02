@@ -5,17 +5,17 @@
  * endpoints, so there is NO external dependency and nothing to vendor.
  * The public anon key (window.LB_CONFIG) goes in the request headers.
  *
- * All WRITES go through the submit_score RPC (the only path RLS allows).
- * READS are plain GETs against the public-readable `scores` table.
+ * All WRITES go through the submit_score / rename_player RPCs (the only paths
+ * RLS allows). READS are plain GETs against the public-readable `scores` table.
  *
  * Exposes global.Leaderboard:
  *   configured()                       -> bool (is the anon key filled in?)
  *   token()                            -> this browser's stable owner_token
  *   getNickname() / setNickname(n)
  *   postScore(game, {score,correct,attempted}, nickname?) -> Promise<{ok,error?}>
- *   board(game, category, limit?)      -> Promise<row[]>
- *   myRow(game, category)              -> Promise<row|null>
- *   rankOf(game, category, score)      -> Promise<number|null>
+ *   board(game, limit?)                -> Promise<row[]> (all rows for a game)
+ *   mountResult(container, game, stats)-> auto-post a finished run (or ask a name)
+ *   renamePlayer(newNick)              -> Promise<{ok,error?}> (claim/rename)
  *   GAMES                              -> [{id,label}, ...]
  * ============================================================ */
 (function (global) {
@@ -126,75 +126,87 @@
     return e;
   }
 
-  // Mount a Post button into `container`. stats = {score, correct, attempted}.
-  // No-op when the backend isn't configured (button simply never appears).
-  function mountPostButton(container, game, stats) {
+  // Auto-post a finished run into `container`. stats = {score, correct, attempted}.
+  // If a nickname is set, submits silently and updates the player's best-points
+  // and best-accuracy rows (server keeps the better). If no nickname yet, asks
+  // for one once (then future finishes post automatically). No-op if unconfigured.
+  function mountResult(container, game, stats) {
     if (!configured()) return;
     lastGame = game;
     var wrap = el('div', { class: 'lb-post', style: 'margin-top:14px' });
-    var status = el('div', { style: 'margin-top:8px' });
+    container.appendChild(wrap);
 
     function viewLink() {
-      var row = el('div', { class: 'row', style: 'margin-top:8px' });
-      var a = el('button', { class: 'btn', text: '🏆 View leaderboard' });
+      var a = el('button', { class: 'btn', style: 'margin-top:8px', text: '🏆 View leaderboard' });
       a.onclick = function () { if (global.App && global.App.go) global.App.go('leaderboard'); };
-      row.appendChild(a);
-      return row;
+      return a;
     }
 
-    function doPost(nick) {
-      status.innerHTML = '';
-      status.appendChild(el('div', { class: 'tag-line', text: 'Posting…' }));
+    function post(nick) {
+      wrap.innerHTML = '';
+      wrap.appendChild(el('div', { class: 'tag-line', text: 'Saving to leaderboard…' }));
       postScore(game, stats, nick).then(function (r) {
-        status.innerHTML = '';
+        wrap.innerHTML = '';
         if (r.ok) {
-          wrap.innerHTML = '';
-          wrap.appendChild(el('div', { class: 'feedback ok', text: '✓ Posted as ' + (nick || getNickname()) + '.' }));
+          wrap.appendChild(el('div', { class: 'feedback ok', text: '✓ Saved to the leaderboard as ' + (nick || getNickname()) + '.' }));
           wrap.appendChild(viewLink());
           return;
         }
-        if (r.error === 'name_taken') { askName('That nickname is taken — pick another.'); return; }
-        if (r.error === 'invalid_nickname') { askName('Use 2–16 letters, numbers, spaces, _ or -.'); return; }
-        var msg = r.error === 'rate_limited' ? 'Too many posts — wait a moment and try again.'
-                : r.error === 'invalid_score' ? 'That score could not be posted.'
+        if (r.error === 'name_taken') { ask('That nickname is taken — pick another.'); return; }
+        if (r.error === 'invalid_nickname') { ask('Use 2–16 letters, numbers, spaces, _ or -.'); return; }
+        var msg = r.error === 'rate_limited' ? 'Too many submissions — wait a moment.'
+                : r.error === 'invalid_score' ? 'That score could not be saved.'
                 : 'Leaderboard unavailable right now.';
-        status.appendChild(el('div', { class: 'feedback no', text: '✗ ' + msg }));
-        postBtn.disabled = false;
+        wrap.appendChild(el('div', { class: 'feedback no', text: '✗ ' + msg }));
+        // let a transient failure (network/rate limit) be retried without replaying the game
+        var retry = el('button', { class: 'btn', style: 'margin-top:8px', text: '↻ Try again' });
+        retry.onclick = function () { post(nick); };
+        wrap.appendChild(retry);
       });
     }
 
-    function askName(msg) {
+    function ask(msg) {
       wrap.innerHTML = '';
-      wrap.appendChild(el('div', { class: 'tag-line', text: msg || 'Enter a nickname to post your score:' }));
+      wrap.appendChild(el('div', { class: 'tag-line', text: msg || 'Enter a nickname to join the leaderboard (your scores save automatically after this):' }));
       var inp = el('input', { class: 'q-input', type: 'text', maxlength: '16', placeholder: 'Nickname (2–16 chars)…', autocomplete: 'off', style: 'max-width:240px' });
-      inp.value = getNickname() || '';
-      var save = el('button', { class: 'btn primary', text: 'Save & Post ▸', style: 'margin-left:8px' });
+      var save = el('button', { class: 'btn primary', text: 'Join ▸', style: 'margin-left:8px' });
+      var note = el('div', { style: 'margin-top:8px' });
       function submit() {
         var v = (inp.value || '').trim();
         if (!NICK_RE.test(v)) {
-          status.innerHTML = '';
-          status.appendChild(el('div', { class: 'feedback no', text: '✗ Use 2–16 letters, numbers, spaces, _ or -.' }));
+          note.innerHTML = '';
+          note.appendChild(el('div', { class: 'feedback no', text: '✗ Use 2–16 letters, numbers, spaces, _ or -.' }));
           inp.focus();
           return;
         }
-        doPost(v);
+        post(v);
       }
       save.onclick = submit;
       inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
       wrap.appendChild(el('div', { class: 'row', style: 'margin-top:8px' }, [inp, save]));
-      wrap.appendChild(status);
+      wrap.appendChild(note);
       inp.focus();
     }
 
-    var postBtn = el('button', { class: 'btn primary', text: '🏆 Post to leaderboard' });
-    postBtn.onclick = function () {
-      var nick = getNickname();
-      if (nick && NICK_RE.test(nick)) { postBtn.disabled = true; doPost(nick); }
-      else askName('Enter a nickname to post your score:');
-    };
-    wrap.appendChild(postBtn);
-    wrap.appendChild(status);
-    container.appendChild(wrap);
+    var nick = getNickname();
+    if (nick && NICK_RE.test(nick)) post(nick);
+    else ask();
+  }
+
+  /* ---- change/claim a nickname for this browser's token ---- */
+  function renamePlayer(newNick) {
+    if (!configured()) return Promise.resolve({ ok: false, error: 'not_configured' });
+    var v = (newNick || '').trim();
+    if (!NICK_RE.test(v)) return Promise.resolve({ ok: false, error: 'invalid_nickname' });
+    return fetch(REST + '/rpc/rename_player', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ p_token: token(), p_new: v })
+    }).then(function (res) {
+      if (res.ok) { setNickname(v); return { ok: true }; }
+      return res.json().catch(function () { return {}; }).then(function (j) {
+        return { ok: false, error: normalizeErr(j && (j.message || j.hint || j.details)) };
+      });
+    }).catch(function () { return { ok: false, error: 'network' }; });
   }
 
   global.Leaderboard = {
@@ -204,7 +216,8 @@
     setNickname: setNickname,
     postScore: postScore,
     board: board,
-    mountPostButton: mountPostButton,
+    mountResult: mountResult,
+    renamePlayer: renamePlayer,
     get lastGame() { return lastGame; },
     GAMES: [
       { id: 'box-pricing',   label: 'Box Pricing' },

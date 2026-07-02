@@ -53,12 +53,15 @@
 
     if (!LB || !LB.configured()) {
       view.appendChild(h('div', { class: 'muted-box' }, [
-        h('p', { class: 'sub', text: 'The leaderboard is not set up yet. Once it is, scores you post from any game show up here.' })
+        h('p', { class: 'sub', text: 'The leaderboard is not set up yet. Once it is, your scores show up here automatically.' })
       ]));
       return;
     }
 
-    view.appendChild(h('p', { class: 'sub', text: 'How everyone stacks up — ranked by score, with accuracy. Each player keeps their best run and their best flawless (100%) run. Post a score from any game’s results screen.' }));
+    view.appendChild(h('p', { class: 'sub', text: 'How everyone stacks up — ranked by score, with accuracy. Each player keeps their top-scoring run and their top 100%-accuracy run. Scores save automatically when you finish a game.' }));
+
+    var idLine = h('div', { class: 'tag-line', style: 'margin:2px 2px 14px' });
+    view.appendChild(idLine);
 
     var state = { game: LB.lastGame || LB.GAMES[0].id, sort: 'score' };
 
@@ -122,7 +125,7 @@
         var all = dedupeSort(rows || [], state.sort);
         if (!all.length) {
           area.appendChild(h('div', { class: 'muted-box' }, [
-            h('p', { class: 'sub', text: 'No scores yet — be the first. Post one from the game’s results screen.' })
+            h('p', { class: 'sub', text: 'No scores yet — be the first. Finish a game and your score saves here automatically.' })
           ]));
           return;
         }
@@ -151,6 +154,48 @@
         }
       });
     }
+
+    // "Posting as X · Change name" line (or a "Set a nickname" prompt if none)
+    function renderId() {
+      idLine.innerHTML = '';
+      var nick = LB.getNickname();
+      if (nick) {
+        idLine.appendChild(h('span', { text: 'Posting as ' }));
+        idLine.appendChild(h('span', { class: 'lb-idname', text: nick }));
+        idLine.appendChild(h('span', { text: '  ·  ' }));
+        var chg = h('span', { class: 'lb-link', text: 'Change name' });
+        chg.onclick = promptName;
+        idLine.appendChild(chg);
+      } else {
+        idLine.appendChild(h('span', { text: 'You’re not on the board yet — scores save automatically once you set a name.  ' }));
+        var set = h('span', { class: 'lb-link', text: 'Set a nickname' });
+        set.onclick = promptName;
+        idLine.appendChild(set);
+      }
+    }
+    function promptName() {
+      idLine.innerHTML = '';
+      var inp = h('input', { class: 'q-input', type: 'text', maxlength: '16', placeholder: 'Nickname (2–16 chars)…', autocomplete: 'off', style: 'max-width:220px' });
+      inp.value = LB.getNickname() || '';
+      var save = h('button', { class: 'btn primary', style: 'margin-left:8px', text: 'Save' });
+      var cancel = h('span', { class: 'lb-link', style: 'margin-left:10px', text: 'cancel' });
+      var msg = h('span', { class: 'tag-line', style: 'margin-left:10px' });
+      function submit() {
+        var v = (inp.value || '').trim();
+        if (!/^[A-Za-z0-9 _-]{2,16}$/.test(v)) { msg.textContent = 'Use 2–16 letters, numbers, spaces, _ or -.'; return; }
+        save.disabled = true; msg.textContent = 'Saving…';
+        LB.renamePlayer(v).then(function (r) {
+          if (r.ok) { renderId(); load(); }
+          else { save.disabled = false; msg.textContent = r.error === 'name_taken' ? 'That name is taken.' : 'Could not save — try again.'; }
+        });
+      }
+      save.onclick = submit;
+      cancel.onclick = renderId;
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); else if (e.key === 'Escape') renderId(); });
+      idLine.appendChild(inp); idLine.appendChild(save); idLine.appendChild(cancel); idLine.appendChild(msg);
+      inp.focus();
+    }
+    renderId();
 
     load();
   }

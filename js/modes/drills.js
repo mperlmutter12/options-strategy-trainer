@@ -212,7 +212,7 @@
         ])
       ]);
       area.appendChild(box);
-      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'box-pricing', { score: state.score, correct: state.correct, attempted: state.qs.length });
+      if (global.Leaderboard) global.Leaderboard.mountResult(box, 'box-pricing', { score: state.score, correct: state.correct, attempted: state.qs.length });
       hud.style.display = 'none';
     }
   }
@@ -436,7 +436,7 @@
         ])
       ]);
       area.appendChild(box);
-      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'option-value', { score: state.score, correct: state.correct, attempted: state.attempted });
+      if (global.Leaderboard) global.Leaderboard.mountResult(box, 'option-value', { score: state.score, correct: state.correct, attempted: state.attempted });
     }
   }
 
@@ -581,7 +581,7 @@
         ])
       ]);
       area.appendChild(box);
-      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, cfg.storeKey, { score: state.score, correct: state.correct, attempted: state.attempted });
+      if (global.Leaderboard) global.Leaderboard.mountResult(box, cfg.storeKey, { score: state.score, correct: state.correct, attempted: state.attempted });
     }
   }
 
@@ -1012,7 +1012,7 @@
         ])
       ]);
       area.appendChild(box);
-      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, cfg.storeKey, { score: state.score, correct: state.correct, attempted: state.attempts });
+      if (global.Leaderboard) global.Leaderboard.mountResult(box, cfg.storeKey, { score: state.score, correct: state.correct, attempted: state.attempts });
     }
   }
 

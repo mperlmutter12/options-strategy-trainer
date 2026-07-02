@@ -311,7 +311,7 @@
       ]);
       summary.appendChild(box);
       // Perfect = no mismatches; attempted = pairs matched + wrong attempts.
-      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'match', { score: state.score, correct: state.total, attempted: state.total + state.mistakes });
+      if (global.Leaderboard) global.Leaderboard.mountResult(box, 'match', { score: state.score, correct: state.total, attempted: state.total + state.mistakes });
     }
   }
 

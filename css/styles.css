@@ -523,6 +523,9 @@ select option { background: var(--bg-2); color: var(--text); }
 .lb-head .lb-sortable { cursor: pointer; user-select: none; }
 .lb-head .lb-sortable:hover { color: var(--text); }
 .lb-head .lb-sort-active { color: var(--accent); }
+.lb-link { color: var(--accent); cursor: pointer; }
+.lb-link:hover { text-decoration: underline; }
+.lb-idname { color: var(--text); font-weight: 600; }
 @media (max-width: 560px) {
   .lb-row { grid-template-columns: 36px 1fr 64px 52px; }
   .lb-detail { display: none; }

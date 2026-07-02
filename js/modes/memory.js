@@ -222,7 +222,7 @@
       ]);
       summary.appendChild(box);
       // Perfect = no misses; attempted = pairs + misses.
-      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'memory', { score: score, correct: state.total, attempted: state.total + state.miss });
+      if (global.Leaderboard) global.Leaderboard.mountResult(box, 'memory', { score: score, correct: state.total, attempted: state.total + state.miss });
     }
   }
 
