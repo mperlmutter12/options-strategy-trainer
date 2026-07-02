@@ -112,7 +112,7 @@
   /* ---- box game ---- */
   function runBox(view, ctx, back) {
     var h = ctx.h;
-    var state = { i: 0, n: 10, score: 0, streak: 0, qs: [], answered: false };
+    var state = { i: 0, n: 10, score: 0, streak: 0, correct: 0, qs: [], answered: false };
 
     view.innerHTML = '';
     view.appendChild(h('div', { class: 'row', style: 'margin-bottom:4px' }, [
@@ -143,7 +143,7 @@
     function start() {
       state.n = Math.max(5, Math.min(25, parseInt(cs.value, 10) || 10));
       state.qs = []; for (var i = 0; i < state.n; i++) state.qs.push(makeBox());
-      state.i = 0; state.score = 0; state.streak = 0;
+      state.i = 0; state.score = 0; state.streak = 0; state.correct = 0;
       hud.style.display = 'flex';
       renderQ();
     }
@@ -181,7 +181,7 @@
         state.answered = true;
         inp.disabled = true; submitBtn.disabled = true;
         var correct = Math.abs(val - q.answer) < 0.01;
-        if (correct) { state.streak++; state.score += 10; } else { state.streak = 0; }   // flat 10 per correct — no streak multiplier
+        if (correct) { state.streak++; state.correct++; state.score += 10; } else { state.streak = 0; }   // flat 10 per correct — no streak multiplier
         sync();
         var fb = document.getElementById('bx-fb');
         fb.appendChild(h('div', { class: 'feedback ' + (correct ? 'ok' : 'no'),
@@ -202,7 +202,7 @@
       var rec = ctx.Store.record('box-pricing', { score: state.score });
       area.innerHTML = '';
       var best = (rec.bestScore === state.score) ? ' 🏆 new best!' : '';
-      area.appendChild(h('div', { class: 'muted-box' }, [
+      var box = h('div', { class: 'muted-box' }, [
         h('h2', { text: 'Final score: ' + state.score + best }),
         h('p', { class: 'tag-line', text: 'Best: ' + (rec.bestScore || state.score) + ' · games played: ' + rec.plays }),
         h('div', { class: 'row' }, [
@@ -210,7 +210,9 @@
           h('button', { class: 'btn', text: '← Drills', onclick: back }),
           h('button', { class: 'btn', text: '⌂ Home', onclick: ctx.home })
         ])
-      ]));
+      ]);
+      area.appendChild(box);
+      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'box-pricing', { score: state.score, correct: state.correct, attempted: state.qs.length });
       hud.style.display = 'none';
     }
   }
@@ -424,7 +426,7 @@
       area.innerHTML = '';
       var best = (rec.bestScore === state.score && state.score > 0) ? ' 🏆 new best!' : '';
       var acc = state.attempted ? Math.round(100 * state.correct / state.attempted) : 0;
-      area.appendChild(h('div', { class: 'muted-box' }, [
+      var box = h('div', { class: 'muted-box' }, [
         h('h2', { text: 'Time! Score: ' + state.score + (accBonus ? ' (incl. +' + accBonus + ' accuracy)' : '') + best }),
         h('p', { class: 'tag-line', text: state.correct + ' correct of ' + state.attempted + ' answered (' + acc + '%) · best ' + (rec.bestScore || state.score) + ' · games played ' + rec.plays }),
         h('div', { class: 'row' }, [
@@ -432,7 +434,9 @@
           h('button', { class: 'btn', text: '← Drills', onclick: leave }),
           h('button', { class: 'btn', text: '⌂ Home', onclick: function () { stopTimer(); state.running = false; ctx.home(); } })
         ])
-      ]));
+      ]);
+      area.appendChild(box);
+      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'option-value', { score: state.score, correct: state.correct, attempted: state.attempted });
     }
   }
 
@@ -567,7 +571,7 @@
       area.innerHTML = '';
       var best = (rec.bestScore === state.score && state.score > 0) ? ' 🏆 new best!' : '';
       var acc = state.attempted ? Math.round(100 * state.correct / state.attempted) : 0;
-      area.appendChild(h('div', { class: 'muted-box' }, [
+      var box = h('div', { class: 'muted-box' }, [
         h('h2', { text: 'Time! Score: ' + state.score + best }),
         h('p', { class: 'tag-line', text: state.correct + ' correct of ' + state.attempted + ' answered (' + acc + '%) · best ' + (rec.bestScore || state.score) + ' · games played ' + rec.plays }),
         h('div', { class: 'row' }, [
@@ -575,7 +579,9 @@
           h('button', { class: 'btn', text: '← Drills', onclick: leave }),
           h('button', { class: 'btn', text: '⌂ Home', onclick: function () { stopTimer(); state.running = false; ctx.home(); } })
         ])
-      ]));
+      ]);
+      area.appendChild(box);
+      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, cfg.storeKey, { score: state.score, correct: state.correct, attempted: state.attempted });
     }
   }
 
@@ -996,7 +1002,7 @@
       area.innerHTML = '';
       hud.style.display = 'none';
       var best = (rec.bestScore === state.score && state.score > 0) ? ' 🏆 new best!' : '';
-      area.appendChild(h('div', { class: 'muted-box' }, [
+      var box = h('div', { class: 'muted-box' }, [
         h('h2', { text: TARGET + ' correct! Score: ' + state.score + best }),
         h('p', { class: 'tag-line', text: 'Took ' + state.attempts + ' questions (' + acc + '% accuracy) · best ' + (rec.bestScore || state.score) + ' · plays ' + rec.plays }),
         h('div', { class: 'row' }, [
@@ -1004,7 +1010,9 @@
           h('button', { class: 'btn', text: '← Drills', onclick: back }),
           h('button', { class: 'btn', text: '⌂ Home', onclick: ctx.home })
         ])
-      ]));
+      ]);
+      area.appendChild(box);
+      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, cfg.storeKey, { score: state.score, correct: state.correct, attempted: state.attempts });
     }
   }
 

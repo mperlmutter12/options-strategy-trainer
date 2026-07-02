@@ -7,7 +7,7 @@ and their **net Greek profile**.
 Vanilla HTML / CSS / JavaScript — **no framework, no build step, no backend**. Opens
 straight from a local file *or* any static host.
 
-**Live:** https://mperlmutter12.github.io/options-strategy-trainer/
+**Live:** https://miperlmutter.github.io/options-strategy-trainer/
 
 ## Run it locally
 Open **`index.html`** in any modern browser. That's it.

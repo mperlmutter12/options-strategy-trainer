@@ -195,7 +195,7 @@
       var chosen = pickRound(pool, state.fa, state.fb, state.count);
       if (chosen.length < 2) { board.innerHTML = '<p class="sub">Not enough distinct strategies for this facet pairing. Widen your session scope.</p>'; return; }
 
-      state.score = 0; state.streak = 0; state.matched = 0; state.selected = null;
+      state.score = 0; state.streak = 0; state.matched = 0; state.mistakes = 0; state.selected = null;
       state.total = chosen.length; state.running = true;
       state.paused = false; state.elapsed = 0; state.lastResume = Date.now();
       hud.style.display = 'flex';
@@ -270,6 +270,7 @@
       } else {
         // wrong
         state.streak = 0;
+        state.mistakes++;
         state.score = Math.max(0, state.score - 2);
         [a, b].forEach(function (t) {
           t.classList.add('wrong');
@@ -299,7 +300,7 @@
       var rec = ctx.Store.record('match', { score: state.score, total: state.total, timeMs: ms });
       var best = (rec.bestTimeMs === ms) ? ' 🏆 new best time!' : '';
       summary.innerHTML = '';
-      summary.appendChild(h('div', { class: 'muted-box', style: 'margin-top:16px' }, [
+      var box = h('div', { class: 'muted-box', style: 'margin-top:16px' }, [
         h('h2', { text: 'Round complete' + best }),
         h('p', { class: 'mono', text: 'Time ' + (ms / 1000).toFixed(1) + 's  ·  Score ' + state.score + ' (incl. +' + speedBonus + ' speed)' +
           '  ·  Best time ' + ctx.Store.fmtTime(rec.bestTimeMs) + '  ·  Best score ' + (rec.bestScore || 0) }),
@@ -307,7 +308,10 @@
           h('button', { class: 'btn primary', text: '▶ Play again', onclick: start }),
           h('button', { class: 'btn', text: '← Home', onclick: ctx.home })
         ])
-      ]));
+      ]);
+      summary.appendChild(box);
+      // Perfect = no mismatches; attempted = pairs matched + wrong attempts.
+      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'match', { score: state.score, correct: state.total, attempted: state.total + state.mistakes });
     }
   }
 

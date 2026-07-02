@@ -211,7 +211,7 @@
       var rec = ctx.Store.record('memory', { score: score, timeMs: ms });
       var pb = (rec.bestTimeMs === ms) ? ' 🏆 new best time!' : '';
       summary.innerHTML = '';
-      summary.appendChild(h('div', { class: 'muted-box', style: 'margin-top:16px' }, [
+      var box = h('div', { class: 'muted-box', style: 'margin-top:16px' }, [
         h('h2', { text: 'Board cleared' + pb }),
         h('p', { class: 'mono', text: 'Time ' + (ms / 1000).toFixed(1) + 's  ·  Moves ' + state.moves + '  ·  Misses ' + state.miss + '  ·  Score ' + score }),
         h('p', { class: 'tag-line', text: 'Best time ' + ctx.Store.fmtTime(rec.bestTimeMs) + '  ·  Best score ' + (rec.bestScore || score) }),
@@ -219,7 +219,10 @@
           h('button', { class: 'btn primary', text: '▶ Play again', onclick: start }),
           h('button', { class: 'btn', text: '← Home', onclick: ctx.home })
         ])
-      ]));
+      ]);
+      summary.appendChild(box);
+      // Perfect = no misses; attempted = pairs + misses.
+      if (global.Leaderboard) global.Leaderboard.mountPostButton(box, 'memory', { score: score, correct: state.total, attempted: state.total + state.miss });
     }
   }
 
