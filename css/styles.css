@@ -500,7 +500,7 @@ select option { background: var(--bg-2); color: var(--text); }
 .lb-table { padding: 8px 12px; }
 .lb-row {
   display: grid;
-  grid-template-columns: 44px 1fr 68px 66px 74px;
+  grid-template-columns: 44px 1fr 76px 62px 56px;
   gap: 8px;
   align-items: center;
   padding: 7px 4px;
@@ -517,10 +517,13 @@ select option { background: var(--bg-2); color: var(--text); }
 .lb-me { background: var(--accent-dim); border-radius: var(--radius); }
 .lb-rank { text-align: center; }
 .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lb-detail, .lb-date { text-align: right; font-size: 12px; }
+.lb-detail, .lb-pct { text-align: right; font-size: 12px; }
 .lb-score { text-align: right; font-weight: 600; color: var(--text); }
 .lb-post .feedback { display: inline-block; }
+.lb-head .lb-sortable { cursor: pointer; user-select: none; }
+.lb-head .lb-sortable:hover { color: var(--text); }
+.lb-head .lb-sort-active { color: var(--accent); }
 @media (max-width: 560px) {
-  .lb-row { grid-template-columns: 36px 1fr 54px 60px; }
-  .lb-date { display: none; }
+  .lb-row { grid-template-columns: 36px 1fr 64px 52px; }
+  .lb-detail { display: none; }
 }

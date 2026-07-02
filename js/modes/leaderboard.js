@@ -1,21 +1,48 @@
 /* ============================================================
  * modes/leaderboard.js — the Leaderboard tab.
- * Game picker + Perfect/Overall toggle + top-10 table (medals,
- * accuracy detail, date), with a pinned "your standing" row when the
- * current player is outside the top 10. Reads via global.Leaderboard.
- * Purely additive: if Supabase isn't configured/reachable it degrades
- * to a friendly message and never blocks the rest of the app.
+ * One combined board per game, ranked by score, with ACC (correct/
+ * attempted) and ACC% columns. Each player keeps up to two rows: their
+ * best-scoring run and their best flawless (100%) run — merged here from
+ * the two stored category rows and deduped when they're the same run.
+ * Reads via global.Leaderboard. Purely additive: if Supabase isn't
+ * configured/reachable it degrades to a message and never blocks the app.
  * ============================================================ */
 (function (global) {
   'use strict';
 
   var MEDAL = ['🥇', '🥈', '🥉'];
 
-  function fmtDate(iso) {
-    if (!iso) return '';
-    var d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    return (d.getMonth() + 1) + '/' + d.getDate() + '/' + String(d.getFullYear()).slice(2);
+  function pctNum(r) { return r.attempted > 0 ? Math.round(100 * r.correct / r.attempted) : -1; }
+  function pctText(r) { return r.attempted > 0 ? pctNum(r) + '%' : '—'; }
+
+  // Merge a player's stored rows into one board: drop exact duplicates
+  // (a player whose best-overall run IS their best-perfect run), then rank by
+  // the active column header:
+  //   'score' — score desc, then accuracy desc
+  //   'acc'   — accuracy desc, then score desc (ties within a shown % go to score)
+  // Accuracy uses the displayed (rounded) percent, so rows showing the same %
+  // group together and are ordered by score within that group. (Acc% is just the
+  // percentage readout of Acc — it is not a separate sort.)
+  function dedupeSort(rows, sortMode) {
+    var seen = {}, out = [];
+    rows.forEach(function (r) {
+      var k = r.owner_token + '|' + r.score + '|' + r.correct + '|' + r.attempted;
+      if (seen[k]) return;
+      seen[k] = true;
+      out.push(r);
+    });
+    out.sort(function (a, b) {
+      var pa = pctNum(a), pb = pctNum(b);
+      if (sortMode === 'acc') {
+        if (pb !== pa) return pb - pa;
+        if (b.score !== a.score) return b.score - a.score;
+      } else {
+        if (b.score !== a.score) return b.score - a.score;
+        if (pb !== pa) return pb - pa;
+      }
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+    return out;
   }
 
   function init(view, ctx) {
@@ -31,9 +58,9 @@
       return;
     }
 
-    view.appendChild(h('p', { class: 'sub', text: 'How everyone stacks up. Perfect ranks your best flawless (100%) run; Overall ranks your best score at any accuracy. Post a score from any game’s results screen.' }));
+    view.appendChild(h('p', { class: 'sub', text: 'How everyone stacks up — ranked by score, with accuracy. Each player keeps their best run and their best flawless (100%) run. Post a score from any game’s results screen.' }));
 
-    var state = { game: LB.lastGame || LB.GAMES[0].id, category: 'overall' };
+    var state = { game: LB.lastGame || LB.GAMES[0].id, sort: 'score' };
 
     var controls = h('div', { class: 'muted-box', style: 'margin-bottom:16px' });
     var gsel = h('select', { class: 'btn ghost' });
@@ -41,71 +68,69 @@
     gsel.value = state.game;
     gsel.addEventListener('change', function () { state.game = gsel.value; load(); });
 
-    var overallBtn = h('button', { class: 'btn', text: 'Overall' });
-    var perfectBtn = h('button', { class: 'btn', text: 'Perfect' });
-    function syncCat() {
-      overallBtn.className = 'btn' + (state.category === 'overall' ? ' primary' : '');
-      perfectBtn.className = 'btn' + (state.category === 'perfect' ? ' primary' : '');
-    }
-    overallBtn.onclick = function () { state.category = 'overall'; syncCat(); load(); };
-    perfectBtn.onclick = function () { state.category = 'perfect'; syncCat(); load(); };
-
     var refreshBtn = h('button', { class: 'btn ghost', text: '↻ Refresh' });
     refreshBtn.onclick = function () { load(); };
 
     controls.appendChild(h('div', { class: 'row toolbar' }, [
       h('span', { class: 'tag-line', text: 'Game' }), gsel,
-      h('span', { style: 'width:10px' }),
-      overallBtn, perfectBtn,
       h('span', { style: 'flex:1' }),
       refreshBtn
     ]));
     view.appendChild(controls);
-    syncCat();
+    view.appendChild(h('p', { class: 'tag-line', style: 'margin:-6px 2px 10px', text: 'Click the Score or Acc header to sort.' }));
 
     var area = h('div');
     view.appendChild(area);
 
     function rowEl(rank, r, isMe, noMedal) {
-      // medals only in the ranked top-10 list, never on the pinned "your standing" row
       var medal = (!noMedal && MEDAL[rank - 1]) || '';
       return h('div', { class: 'lb-row' + (isMe ? ' lb-me' : '') }, [
         h('span', { class: 'lb-rank mono', text: medal || String(rank) }),
         h('span', { class: 'lb-name', text: r.nickname }),
+        h('span', { class: 'lb-score mono', text: String(r.score) }),
         h('span', { class: 'lb-detail mono dim', text: r.correct + '/' + r.attempted }),
-        h('span', { class: 'lb-date dim', text: fmtDate(r.created_at) }),
-        h('span', { class: 'lb-score mono', text: String(r.score) })
+        h('span', { class: 'lb-pct mono dim', text: pctText(r) })
       ]);
     }
 
+    function head(cls, label, key) {
+      var active = state.sort === key;
+      return h('span', {
+        class: cls + ' lb-sortable' + (active ? ' lb-sort-active' : ''),
+        onclick: function () { if (state.sort !== key) { state.sort = key; load(); } },
+        text: active ? label + ' ▾' : label
+      });
+    }
     function header() {
       return h('div', { class: 'lb-row lb-head' }, [
         h('span', { class: 'lb-rank', text: '#' }),
         h('span', { class: 'lb-name', text: 'Player' }),
-        h('span', { class: 'lb-detail', text: 'Acc.' }),
-        h('span', { class: 'lb-date', text: 'Date' }),
-        h('span', { class: 'lb-score', text: 'Score' })
+        head('lb-score', 'Score', 'score'),
+        head('lb-detail', 'Acc', 'acc'),
+        h('span', { class: 'lb-pct', text: 'Acc%' })   // readout of Acc, not a separate sort
       ]);
     }
 
     function load() {
-      var game = state.game, cat = state.category, myToken = LB.token();
+      var game = state.game, myToken = LB.token();
       area.innerHTML = '';
       area.appendChild(h('p', { class: 'tag-line', text: 'Loading…' }));
 
-      LB.board(game, cat, 10).then(function (rows) {
-        if (state.game !== game || state.category !== cat) return;   // selection changed mid-load
+      LB.board(game).then(function (rows) {
+        if (state.game !== game) return;   // selection changed mid-load
         area.innerHTML = '';
-        if (!rows || !rows.length) {
+        var all = dedupeSort(rows || [], state.sort);
+        if (!all.length) {
           area.appendChild(h('div', { class: 'muted-box' }, [
             h('p', { class: 'sub', text: 'No scores yet — be the first. Post one from the game’s results screen.' })
           ]));
           return;
         }
+
         var box = h('div', { class: 'muted-box lb-table' });
         box.appendChild(header());
         var meInTop = false;
-        rows.forEach(function (r, i) {
+        all.slice(0, 10).forEach(function (r, i) {
           var isMe = r.owner_token === myToken;
           if (isMe) meInTop = true;
           box.appendChild(rowEl(i + 1, r, isMe));
@@ -113,16 +138,16 @@
         area.appendChild(box);
 
         if (!meInTop) {
-          LB.myRow(game, cat).then(function (mine) {
-            if (!mine || state.game !== game || state.category !== cat) return;
-            LB.rankOf(game, cat, mine.score, mine.created_at).then(function (rank) {
-              if (state.game !== game || state.category !== cat) return;
-              var wrap = h('div', { class: 'muted-box lb-table', style: 'margin-top:10px' });
-              wrap.appendChild(h('div', { class: 'tag-line', style: 'margin-bottom:4px', text: 'Your standing' }));
-              wrap.appendChild(rowEl(rank || '—', mine, true, true));
-              area.appendChild(wrap);
-            });
-          });
+          var idx = -1;
+          for (var i = 0; i < all.length; i++) {
+            if (all[i].owner_token === myToken) { idx = i; break; }
+          }
+          if (idx >= 0) {
+            var wrap = h('div', { class: 'muted-box lb-table', style: 'margin-top:10px' });
+            wrap.appendChild(h('div', { class: 'tag-line', style: 'margin-bottom:4px', text: 'Your best' }));
+            wrap.appendChild(rowEl(idx + 1, all[idx], true, true));
+            area.appendChild(wrap);
+          }
         }
       });
     }
@@ -132,7 +157,7 @@
 
   global.App.registerMode({
     id: 'leaderboard', label: 'Leaderboard', minStrategies: 0,
-    blurb: 'See how everyone stacks up — per-game Perfect and Overall boards.',
+    blurb: 'See how everyone stacks up — ranked by score, with accuracy.',
     init: init
   });
 })(window);

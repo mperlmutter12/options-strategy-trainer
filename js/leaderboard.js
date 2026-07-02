@@ -95,52 +95,19 @@
       .catch(function () { return { ok: false, error: 'network' }; });
   }
 
-  /* ---- read: top-N rows for a (game, category) board ---- */
-  function board(game, category, limit) {
+  /* ---- read: all rows for a game (both categories) ----
+     One combined board per game: each player has up to two stored rows
+     (best-overall + best-perfect). The tab merges/dedupes/ranks them
+     client-side, so we just pull everything for the game. Row counts are
+     tiny (an intern cohort), so a generous limit is plenty. */
+  function board(game, limit) {
     if (!configured()) return Promise.resolve([]);
     var q = REST + '/scores?game=eq.' + encodeURIComponent(game) +
-            '&category=eq.' + encodeURIComponent(category) +
-            '&order=score.desc,created_at.asc&limit=' + (limit || 10) +
+            '&order=score.desc,created_at.asc&limit=' + (limit || 500) +
             '&select=' + SELECT;
     return fetch(q, { headers: headers() })
       .then(function (r) { return r.ok ? r.json() : []; })
       .catch(function () { return []; });
-  }
-
-  /* ---- read: this browser's own row on a board (may be null) ---- */
-  function myRow(game, category) {
-    if (!configured()) return Promise.resolve(null);
-    var q = REST + '/scores?game=eq.' + encodeURIComponent(game) +
-            '&category=eq.' + encodeURIComponent(category) +
-            '&owner_token=eq.' + encodeURIComponent(token()) +
-            '&select=' + SELECT;
-    return fetch(q, { headers: headers() })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (rows) { return rows[0] || null; })
-      .catch(function () { return null; });
-  }
-
-  /* ---- read: rank = (# rows ranked ahead) + 1 ----
-     "Ahead" must match the board's ordering (score desc, then created_at asc):
-     a higher score, OR the same score set earlier. Counting only strictly-higher
-     scores would give every player tied at the boundary rank 1. createdAt is the
-     player's own row timestamp (from myRow); without it we fall back to score-only. */
-  function rankOf(game, category, score, createdAt) {
-    if (!configured()) return Promise.resolve(null);
-    var s = (score | 0);
-    var ahead = createdAt
-      ? 'or=(score.gt.' + s + ',and(score.eq.' + s + ',created_at.lt.' + encodeURIComponent(createdAt) + '))'
-      : 'score=gt.' + s;
-    var q = REST + '/scores?game=eq.' + encodeURIComponent(game) +
-            '&category=eq.' + encodeURIComponent(category) +
-            '&' + ahead + '&select=owner_token';
-    return fetch(q, { headers: headers({ 'Prefer': 'count=exact', 'Range': '0-0' }) })
-      .then(function (r) {
-        var cr = r.headers.get('content-range') || '';
-        var m = cr.match(/\/(\d+)\s*$/);
-        return m ? (parseInt(m[1], 10) + 1) : null;
-      })
-      .catch(function () { return null; });
   }
 
   /* ---- reusable "Post to leaderboard" UI (self-contained DOM) ---- */
@@ -237,8 +204,6 @@
     setNickname: setNickname,
     postScore: postScore,
     board: board,
-    myRow: myRow,
-    rankOf: rankOf,
     mountPostButton: mountPostButton,
     get lastGame() { return lastGame; },
     GAMES: [
